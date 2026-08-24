@@ -35,6 +35,9 @@ export function handleError(error: unknown) {
   if (error instanceof Error && error.message.startsWith("Missing required")) {
     return fail("Server configuration error", 500);
   }
-  console.error(error);
-  return fail("Something went wrong", 500);
+  console.error("API ERROR:", error);
+return fail(
+  error instanceof Error ? error.message : String(error),
+  500,
+);
 }
