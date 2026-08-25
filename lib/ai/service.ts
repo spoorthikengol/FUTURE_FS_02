@@ -1,4 +1,15 @@
+import {
+  buildCrmSnapshot,
+  computeLeadScore,
+  insightFactorsFor,
+  qualityFromScore,
+  recommendedActionFor,
+  type LeadQuality,
+} from "@/lib/ai/context";
+import { QUICK_ACTIONS, type IntentId } from "@/lib/ai/actions";
+import { classifyIntent, runIntent, type AssistantAnswer } from "@/lib/ai/intents";
 import { getAiConfig } from "@/lib/env";
+import { toNoteDTO } from "@/lib/serializers";
 import { FollowUp } from "@/models/FollowUp";
 import { Lead } from "@/models/Lead";
 import { Note } from "@/models/Note";
@@ -6,7 +17,7 @@ import type { LeadDTO } from "@/types/crm";
 
 export type LeadInsights = {
   score: number;
-  quality: "High Potential" | "Promising" | "Needs Nurture" | "At Risk";
+  quality: LeadQuality;
   summary: string;
   keySignals: string[];
   recommendedAction: string;
@@ -21,59 +32,29 @@ export type GeneratedEmail = {
   mode: "live" | "demo";
 };
 
+export type GeneratedWhatsApp = {
+  message: string;
+  mode: "live" | "demo";
+};
+
+export type AssistantReply = AssistantAnswer & {
+  reply: string;
+  mode: "live" | "demo";
+  disclaimer: string;
+  intent: string | null;
+};
+
 const DISCLAIMER =
   "AI recommendation only — not a guaranteed prediction of conversion or revenue.";
-
-function statusScore(status: LeadDTO["status"]) {
-  const map = {
-    NEW: 18,
-    CONTACTED: 28,
-    QUALIFIED: 42,
-    PROPOSAL: 52,
-    CONVERTED: 72,
-    LOST: 8,
-  };
-  return map[status];
-}
 
 function fallbackInsights(
   lead: LeadDTO,
   notesCount: number,
   overdueFollowUps: number,
 ): LeadInsights {
-  let score = statusScore(lead.status);
-  score += Math.min(20, Math.round(lead.value / 8000));
-  if (lead.priority === "URGENT") score += 8;
-  if (lead.priority === "HIGH") score += 5;
-  if (lead.priority === "LOW") score -= 4;
-  if (notesCount >= 2) score += 6;
-  if (lead.message.length > 40) score += 4;
-  if (overdueFollowUps > 0) score -= 12;
-  if (!lead.lastContactedAt && lead.status !== "NEW") score -= 6;
-  if (lead.source === "Referral" || lead.source === "LinkedIn") score += 4;
-  score = Math.max(8, Math.min(96, score));
-
-  const quality: LeadInsights["quality"] =
-    lead.status === "LOST"
-      ? "At Risk"
-      : score >= 75
-        ? "High Potential"
-        : score >= 55
-          ? "Promising"
-          : "Needs Nurture";
-
-  const recommendedAction =
-    overdueFollowUps > 0
-      ? "Recover the overdue follow-up within 24 hours before intent cools."
-      : lead.status === "NEW"
-        ? "Make first contact today and confirm budget, timeline, and owner."
-        : lead.status === "PROPOSAL"
-          ? "Schedule a decision checkpoint and address remaining objections."
-          : lead.status === "QUALIFIED"
-            ? "Send a tailored proposal with clear next steps and value proof."
-            : lead.status === "CONVERTED"
-              ? "Plan onboarding and identify expansion opportunities."
-              : "Send a concise check-in that references their original request.";
+  const score = computeLeadScore(lead, notesCount, overdueFollowUps);
+  const quality = qualityFromScore(lead.status, score);
+  const recommendedAction = recommendedActionFor(lead, overdueFollowUps);
 
   return {
     score,
@@ -86,30 +67,7 @@ function fallbackInsights(
       lead.message ? "Inbound message provides buying context" : "No detailed inbound message",
     ],
     recommendedAction,
-    factors: [
-      {
-        label: "Pipeline stage",
-        impact: lead.status === "LOST" ? "negative" : lead.status === "NEW" ? "neutral" : "positive",
-        detail: `Current status is ${lead.status}.`,
-      },
-      {
-        label: "Lead value",
-        impact: lead.value >= 40000 ? "positive" : lead.value >= 15000 ? "neutral" : "negative",
-        detail: `Estimated value is $${lead.value.toLocaleString()}.`,
-      },
-      {
-        label: "Follow-up hygiene",
-        impact: overdueFollowUps ? "negative" : "positive",
-        detail: overdueFollowUps
-          ? "Overdue tasks reduce conversion probability."
-          : "Scheduled follow-ups are in good shape.",
-      },
-      {
-        label: "Context depth",
-        impact: notesCount + (lead.message ? 1 : 0) >= 2 ? "positive" : "neutral",
-        detail: "Notes and original message inform personalization quality.",
-      },
-    ],
+    factors: insightFactorsFor(lead, overdueFollowUps, notesCount),
     disclaimer: DISCLAIMER,
     mode: "demo",
   };
@@ -141,6 +99,29 @@ VeloraCRM
 `;
 
   return { subject, body: body.trim(), mode: "demo" };
+}
+
+function fallbackWhatsApp(lead: LeadDTO, notes: string[], instruction?: string): GeneratedWhatsApp {
+  const firstName = lead.name.split(" ")[0];
+  const opener =
+    lead.status === "NEW"
+      ? `Hi ${firstName}! Thanks for reaching out to VeloraCRM.`
+      : lead.status === "PROPOSAL"
+        ? `Hi ${firstName}, quick check-in on the proposal for ${lead.company}.`
+        : `Hi ${firstName}, following up from VeloraCRM.`;
+
+  const middle = lead.message
+    ? `Wanted to follow up on “${lead.message.slice(0, 80)}${lead.message.length > 80 ? "…" : ""}”.`
+    : `Wanted to see how things are progressing on your end.`;
+
+  const noteLine = notes[0] ? ` One quick note from our side: ${notes[0].slice(0, 100)}.` : "";
+  const instructionLine = instruction ? ` ${instruction}` : "";
+  const closing = lead.followUpDate
+    ? "Does our scheduled time still work for you?"
+    : "Got 10 minutes this week for a quick call?";
+
+  const message = `${opener} ${middle}${noteLine}${instructionLine} ${closing}`.replace(/\s+/g, " ").trim();
+  return { message, mode: "demo" };
 }
 
 async function completeLeadContext(leadId: string) {
@@ -238,28 +219,133 @@ export async function generateLeadEmail(lead: LeadDTO, instruction?: string): Pr
   }
 }
 
+export async function generateLeadWhatsApp(
+  lead: LeadDTO,
+  instruction?: string,
+): Promise<GeneratedWhatsApp> {
+  const context = await completeLeadContext(lead.id);
+  const notes = context?.notes.map((note) => note.content) ?? [];
+  const fallback = fallbackWhatsApp(lead, notes, instruction);
+
+  const live = await callLlm(
+    JSON.stringify({ lead, notes, followUps: context?.followUps ?? [], instruction }),
+    "Write a short, friendly WhatsApp message (2-4 sentences, no markdown, conversational tone, may use at most one emoji) for a B2B sales follow-up. Return JSON {message}. Do not claim the message was sent.",
+  );
+
+  if (!live) return fallback;
+  try {
+    const parsed = JSON.parse(live) as Partial<GeneratedWhatsApp>;
+    return { message: parsed.message || fallback.message, mode: "live" };
+  } catch {
+    return { message: live, mode: "live" };
+  }
+}
+
+const KNOWN_INTENTS = new Set<string>(QUICK_ACTIONS.map((action) => action.id));
+
+function answerToText(answer: AssistantAnswer): string {
+  const lines: string[] = [answer.headline];
+  for (const section of answer.sections) {
+    if (section.heading) lines.push(`\n${section.heading}`);
+    if (section.paragraphs) lines.push(...section.paragraphs);
+    if (section.bullets) lines.push(...section.bullets.map((item) => `• ${item}`));
+    if (section.table) {
+      lines.push(section.table.headers.join(" | "));
+      lines.push(...section.table.rows.map((row) => row.join(" | ")));
+    }
+  }
+  return lines.join("\n");
+}
+
+/**
+ * The Velora AI Assistant's central reasoning entrypoint. Always grounds
+ * answers in a fresh CRM snapshot (real leads, analytics, follow-ups) --
+ * either through a deterministic, code-computed intent handler (guaranteed
+ * accurate) or, for open-ended questions, by handing the model the same
+ * snapshot data with an explicit "do not invent facts" instruction.
+ */
 export async function generateAssistantReply(input: {
   message: string;
   lead?: LeadDTO | null;
   history: { role: "user" | "assistant"; content: string }[];
-}) {
-  const lead = input.lead;
-  const fallback = lead
-    ? `Here's a Velora AI recommendation for ${lead.name} (${lead.company}):\n\n• Status: ${lead.status}\n• Value: $${lead.value.toLocaleString()}\n• Next action: ${fallbackInsights(lead, 0, 0).recommendedAction}\n\n${DISCLAIMER}`
-    : `I can help with lead summaries, next actions, conversion analysis, and follow-up suggestions. Open a lead or mention a company name to get a more specific recommendation.\n\n${DISCLAIMER}`;
+  intent?: string | null;
+}): Promise<AssistantReply> {
+  const lead = input.lead ?? null;
+  const snapshot = await buildCrmSnapshot();
+  const leadSnapshot = lead ? (snapshot.leads.find((item) => item.lead.id === lead.id) ?? null) : null;
+  const notes = leadSnapshot
+    ? (await Note.find({ leadId: lead!.id }).sort({ createdAt: -1 }).limit(20).lean()).map(toNoteDTO)
+    : [];
+
+  const requestedIntent: IntentId | null =
+    input.intent && KNOWN_INTENTS.has(input.intent) ? (input.intent as IntentId) : null;
+  const intent = requestedIntent ?? classifyIntent(input.message, Boolean(leadSnapshot));
+
+  if (intent) {
+    const answer = runIntent(intent, snapshot, leadSnapshot, notes);
+    let headline = answer.headline;
+    let mode: "live" | "demo" = "demo";
+
+    const { apiKey } = getAiConfig();
+    if (apiKey) {
+      const polished = await callLlm(
+        JSON.stringify({ facts: answer, question: input.message }),
+        "You are Velora AI. Rewrite ONLY a single friendly headline sentence (max 30 words) using solely the facts given in 'facts'. Do not add any number, name, or claim not present in facts. Return plain text only, no JSON, no quotation marks.",
+      );
+      if (polished && polished.trim()) {
+        headline = polished.trim().replace(/^"|"$/g, "");
+        mode = "live";
+      }
+    }
+
+    const finalAnswer: AssistantAnswer = { ...answer, headline };
+    return {
+      ...finalAnswer,
+      reply: answerToText(finalAnswer),
+      mode,
+      disclaimer: DISCLAIMER,
+      intent,
+    };
+  }
+
+  const fallbackText = leadSnapshot
+    ? `Here's a Velora AI recommendation for ${lead!.name} (${lead!.company}):\n\n• Status: ${lead!.status}\n• Value: $${lead!.value.toLocaleString()}\n• Next action: ${recommendedActionFor(lead!, leadSnapshot.overdueFollowUps)}\n\n${DISCLAIMER}`
+    : `I can help with lead summaries, next actions, conversion predictions, pipeline value, revenue insights, and follow-up suggestions. Try "Which leads should I contact today?" or "What is my current pipeline value?"\n\nRight now you have ${snapshot.totalLeads} leads and an open pipeline of $${snapshot.openPipelineValue.toLocaleString()}.\n\n${DISCLAIMER}`;
+
+  const topLeadsForContext = [...snapshot.leads]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5)
+    .map((item) => ({
+      name: item.lead.name,
+      company: item.lead.company,
+      score: item.score,
+      status: item.lead.status,
+      value: item.lead.value,
+    }));
 
   const live = await callLlm(
     JSON.stringify({
       message: input.message,
       lead,
       history: input.history.slice(-8),
+      crmSnapshot: {
+        totalLeads: snapshot.totalLeads,
+        openPipelineValue: snapshot.openPipelineValue,
+        conversionRate: snapshot.analytics.kpis.conversionRate.value,
+        currentRevenue: snapshot.analytics.forecast.currentRevenue,
+        allTimeRevenue: snapshot.analytics.kpis.revenue.value,
+        topLeads: topLeadsForContext,
+      },
     }),
-    "You are Velora AI, an assistant inside VeloraCRM. Be concise, practical, and clearly label suggestions as recommendations.",
+    "You are Velora AI, an assistant inside VeloraCRM. Answer using ONLY the facts in message/lead/history/crmSnapshot. Never invent lead names, numbers, or outcomes not present in the provided data. If the question needs data that isn't included, clearly say the data is unavailable. Be concise, practical, and label suggestions as recommendations, not guarantees.",
   );
 
   return {
-    reply: live || fallback,
-    mode: live ? ("live" as const) : ("demo" as const),
+    headline: live ? live.split("\n")[0].slice(0, 240) : fallbackText.split("\n")[0],
+    sections: [],
+    reply: live || fallbackText,
+    mode: live ? "live" : "demo",
     disclaimer: DISCLAIMER,
+    intent: null,
   };
 }

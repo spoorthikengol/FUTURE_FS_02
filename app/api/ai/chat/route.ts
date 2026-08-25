@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
         message: body.message,
         lead: lead ? toLeadDTO(lead) : null,
         history: body.history,
+        intent: body.intent ?? null,
       }),
     );
   } catch (error) {

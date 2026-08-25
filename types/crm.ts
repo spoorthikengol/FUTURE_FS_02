@@ -37,6 +37,7 @@ export const ACTIVITY_TYPES = [
   "FOLLOW_UP_COMPLETED",
   "LEAD_CONVERTED",
   "AI_EMAIL_GENERATED",
+  "AI_WHATSAPP_GENERATED",
 ] as const;
 
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];

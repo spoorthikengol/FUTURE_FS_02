@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { QUICK_ACTION_IDS } from "@/lib/ai/quick-action-meta";
 import {
   FOLLOW_UP_STATUSES,
   LEAD_PRIORITIES,
@@ -64,13 +65,24 @@ export const aiEmailSchema = z.object({
   instruction: z.string().trim().max(500).optional(),
 });
 
+export const aiWhatsAppSchema = z.object({
+  leadId: z.string().min(1),
+  instruction: z.string().trim().max(500).optional(),
+});
+
 export const aiInsightsSchema = z.object({
   leadId: z.string().min(1),
+});
+
+export const aiQuickActionSchema = z.object({
+  action: z.enum(QUICK_ACTION_IDS),
+  leadId: z.string().min(1).optional(),
 });
 
 export const aiChatSchema = z.object({
   message: z.string().trim().min(1).max(4000),
   leadId: z.string().optional(),
+  intent: z.string().trim().max(64).optional(),
   history: z
     .array(
       z.object({
