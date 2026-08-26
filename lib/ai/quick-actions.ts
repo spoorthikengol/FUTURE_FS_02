@@ -83,7 +83,12 @@ function contactToday(snapshot: CrmSnapshot): QuickActionResult {
 
 function atRisk(snapshot: CrmSnapshot): QuickActionResult {
   const risky = snapshot.leads
-    .filter((item) => item.lead.status !== "CONVERTED" && (item.quality === "At Risk" || item.overdueFollowUps > 0))
+    .filter(
+      (item) =>
+        item.lead.status !== "CONVERTED" &&
+        item.lead.status !== "LOST" &&
+        (item.quality === "At Risk" || item.overdueFollowUps > 0),
+    )
     .sort((a, b) => b.lead.value - a.lead.value);
   const leads = risky.map((item) =>
     toQuickActionLead(
@@ -107,7 +112,7 @@ function atRisk(snapshot: CrmSnapshot): QuickActionResult {
 
 function topOpportunities(snapshot: CrmSnapshot): QuickActionResult {
   const ranked = [...snapshot.leads]
-    .filter((item) => item.lead.status !== "LOST")
+    .filter((item) => item.lead.status !== "LOST" && item.lead.status !== "CONVERTED")
     .sort((a, b) => b.score - a.score)
     .slice(0, 8);
   return {
@@ -124,7 +129,7 @@ function topOpportunities(snapshot: CrmSnapshot): QuickActionResult {
 
 function highestValue(snapshot: CrmSnapshot): QuickActionResult {
   const ranked = [...snapshot.leads]
-    .filter((item) => item.lead.status !== "LOST")
+    .filter((item) => item.lead.status !== "LOST" && item.lead.status !== "CONVERTED")
     .sort((a, b) => b.lead.value - a.lead.value)
     .slice(0, 8);
   return {
@@ -250,6 +255,16 @@ function followUpRecommendations(snapshot: CrmSnapshot): QuickActionResult {
 }
 
 function nextBestAction(snapshot: CrmSnapshot, lead: LeadSnapshot | null): QuickActionResult {
+  if (lead && (lead.lead.status === "CONVERTED" || lead.lead.status === "LOST")) {
+    return {
+      id: "next_best_action",
+      title: `Next best action — ${lead.lead.name}`,
+      description: `${lead.lead.name} is ${lead.lead.status.toLowerCase()} — no further action needed.`,
+      type: "text",
+      message: `${lead.lead.name} is ${lead.lead.status.toLowerCase()} — no further action needed.`,
+      generatedAt: snapshot.generatedAt,
+    };
+  }
   if (lead) {
     return {
       id: "next_best_action",

@@ -219,6 +219,7 @@ export async function buildCrmSnapshot(): Promise<CrmSnapshot> {
 
 export function leadsToContactToday(snapshot: CrmSnapshot) {
   return snapshot.leads.filter((item) => {
+    if (item.lead.status === "CONVERTED" || item.lead.status === "LOST") return false;
     if (item.overdueFollowUps > 0) return true;
     if (item.nextFollowUpAt && isToday(new Date(item.nextFollowUpAt))) return true;
     if (item.lead.status === "NEW" && !item.lead.lastContactedAt) return true;
