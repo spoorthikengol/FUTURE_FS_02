@@ -47,6 +47,7 @@ export default function DashboardPage() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [followUps, setFollowUps] = useState<FollowUpItem[]>([]);
+  const [followUpCounts, setFollowUpCounts] = useState({ upcoming: 0, overdue: 0, completed: 0 });
   const [riskSummary, setRiskSummary] = useState<DealRiskSummary | null>(null);
   const [error, setError] = useState("");
 
@@ -61,6 +62,11 @@ export default function DashboardPage() {
       setAnalytics(metrics);
       setActivity(events);
       setFollowUps(tasks.filter((item) => item.status !== "COMPLETED").slice(0, 6));
+      setFollowUpCounts({
+        upcoming: tasks.filter((item) => item.status === "UPCOMING").length,
+        overdue: tasks.filter((item) => item.status === "OVERDUE").length,
+        completed: tasks.filter((item) => item.status === "COMPLETED").length,
+      });
       setRiskSummary(risk.summary);
       setError("");
     } catch (err) {
@@ -150,7 +156,28 @@ export default function DashboardPage() {
             </ul>
           </Card>
           <Card>
-            <CardHeader title="Upcoming follow-ups" />
+            <CardHeader
+              title="Follow-ups"
+              action={
+                <Link className="text-xs text-accent" href="/followups">
+                  View all
+                </Link>
+              }
+            />
+            <div className="mb-3 grid grid-cols-3 gap-2 text-center text-sm">
+              <div>
+                <p className="text-lg font-semibold text-amber-300">{followUpCounts.upcoming}</p>
+                <p className="text-[11px] text-muted">Upcoming</p>
+              </div>
+              <div>
+                <p className="text-lg font-semibold text-rose-300">{followUpCounts.overdue}</p>
+                <p className="text-[11px] text-muted">Overdue</p>
+              </div>
+              <div>
+                <p className="text-lg font-semibold text-emerald-300">{followUpCounts.completed}</p>
+                <p className="text-[11px] text-muted">Completed</p>
+              </div>
+            </div>
             <ul className="space-y-3">
               {followUps.length === 0 ? (
                 <p className="text-sm text-muted">No open follow-ups.</p>
