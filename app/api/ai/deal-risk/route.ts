@@ -2,26 +2,7 @@ import { NextRequest } from "next/server";
 
 import { buildCrmSnapshot } from "@/lib/ai/context";
 import { buildDealRiskRadar } from "@/lib/ai/deal-risk";
-
-function ok<T>(data: T) {
-  return Response.json({
-    ok: true,
-    data,
-  });
-}
-
-function fail(
-  message: string,
-  status = 500,
-) {
-  return Response.json(
-    {
-      ok: false,
-      error: message,
-    },
-    { status },
-  );
-}
+import { fail, ok } from "@/lib/api";
 
 export async function GET(
   request: NextRequest,
@@ -83,6 +64,7 @@ export async function GET(
       error instanceof Error
         ? error.message
         : "Failed to build deal risk radar.",
+      500,
     );
   }
 }
