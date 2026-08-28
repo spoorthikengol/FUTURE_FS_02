@@ -11,6 +11,7 @@ import {
   LogOut,
   Menu,
   Settings,
+  ShieldAlert,
   Users,
   X,
 } from "lucide-react";
@@ -26,6 +27,7 @@ const NAV = [
   { href: "/pipeline", label: "Pipeline", icon: Kanban },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/ai", label: "AI Assistant", icon: Bot },
+  { href: "/deal-risk", label: "Deal Risk", icon: ShieldAlert },
   { href: "/activity", label: "Activity", icon: Activity },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

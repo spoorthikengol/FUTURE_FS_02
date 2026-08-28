@@ -1,0 +1,592 @@
+diff --git a/app/(app)/dashboard/page.tsx b/app/(app)/dashboard/page.tsx
+index 221a9cf..7cb427b 100644
+--- a/app/(app)/dashboard/page.tsx
++++ b/app/(app)/dashboard/page.tsx
+@@ -14,6 +14,7 @@ import { Card, CardHeader } from "@/components/ui/card";
+ import { ErrorState, Skeleton } from "@/components/ui/states";
+ import { api } from "@/lib/client";
+ import { formatCurrency, formatDateTime, relativeTime } from "@/lib/utils";
++import type { DealRiskSummary } from "@/lib/ai/deal-risk";
+ 
+ type Analytics = {
+   kpis: Record<string, { value: number; change: number }>;
+@@ -45,18 +46,21 @@ export default function DashboardPage() {
+   const [analytics, setAnalytics] = useState<Analytics | null>(null);
+   const [activity, setActivity] = useState<ActivityItem[]>([]);
+   const [followUps, setFollowUps] = useState<FollowUpItem[]>([]);
++  const [dealRisk, setDealRisk] = useState<DealRiskSummary | null>(null);
+   const [error, setError] = useState("");
+ 
+   async function load() {
+     try {
+-      const [metrics, events, tasks] = await Promise.all([
++      const [metrics, events, tasks, risk] = await Promise.all([
+         api<Analytics>("/api/analytics"),
+         api<ActivityItem[]>("/api/activity?limit=8"),
+         api<FollowUpItem[]>("/api/followups"),
++        api<{ summary: DealRiskSummary }>("/api/ai/deal-risk"),
+       ]);
+       setAnalytics(metrics);
+       setActivity(events);
+       setFollowUps(tasks.filter((item) => item.status !== "COMPLETED").slice(0, 6));
++      setDealRisk(risk.summary);
+       setError("");
+     } catch (err) {
+       setError(err instanceof Error ? err.message : "Failed to load dashboard");
+@@ -105,6 +109,34 @@ export default function DashboardPage() {
+       <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+         <FunnelViz data={analytics.funnel} />
+         <div className="space-y-4">
++          <Card>
++            <CardHeader
++              title="AI Deal Risk"
++              action={
++                <Link className="text-xs text-accent" href="/deal-risk">
++                  View Risk Radar
++                </Link>
++              }
++            />
++            {dealRisk ? (
++              <div className="grid grid-cols-3 gap-2 text-center">
++                <div className="rounded-lg bg-rose-500/10 p-2">
++                  <p className="text-lg font-semibold text-rose-300">{dealRisk.highRisk}</p>
++                  <p className="text-[11px] text-muted">High Risk</p>
++                </div>
++                <div className="rounded-lg bg-amber-500/10 p-2">
++                  <p className="text-lg font-semibold text-amber-300">{dealRisk.needsAttention}</p>
++                  <p className="text-[11px] text-muted">Needs Attention</p>
++                </div>
++                <div className="rounded-lg bg-emerald-500/10 p-2">
++                  <p className="text-lg font-semibold text-emerald-300">{dealRisk.healthy}</p>
++                  <p className="text-[11px] text-muted">Healthy</p>
++                </div>
++              </div>
++            ) : (
++              <Skeleton className="h-16" />
++            )}
++          </Card>
+           <Card>
+             <CardHeader title="Recent activity" action={<Link className="text-xs text-accent" href="/activity">View all</Link>} />
+             <ul className="space-y-3">
+diff --git a/app/(app)/deal-risk/page.tsx b/app/(app)/deal-risk/page.tsx
+new file mode 100644
+index 0000000..804dc98
+--- /dev/null
++++ b/app/(app)/deal-risk/page.tsx
+@@ -0,0 +1,201 @@
++"use client";
++
++import { useEffect, useState } from "react";
++import Link from "next/link";
++import { AlertTriangle, CheckCircle2, Clock } from "lucide-react";
++import { toast } from "sonner";
++import { Badge, StatusBadge } from "@/components/ui/badge";
++import { Button } from "@/components/ui/button";
++import { Card, CardHeader } from "@/components/ui/card";
++import { ErrorState, Skeleton } from "@/components/ui/states";
++import { api } from "@/lib/client";
++import { formatCurrency } from "@/lib/utils";
++import type { DealRiskLead, DealRiskRadar, RiskLevel } from "@/lib/ai/deal-risk";
++
++const LEVEL_CONFIG: Record<RiskLevel, { badge: string; dot: string; icon: typeof AlertTriangle; label: string }> = {
++  "High Risk": { badge: "bg-rose-500/10 text-rose-300", dot: "bg-rose-400", icon: AlertTriangle, label: "High Risk" },
++  "Needs Attention": { badge: "bg-amber-500/10 text-amber-300", dot: "bg-amber-400", icon: Clock, label: "Needs Attention" },
++  Healthy: { badge: "bg-emerald-500/10 text-emerald-300", dot: "bg-emerald-400", icon: CheckCircle2, label: "Healthy" },
++};
++
++function friendlyError(err: unknown) {
++  return err instanceof Error && err.message ? err.message : "Something went wrong. Please try again.";
++}
++
++function DealRow({ lead, onFollowUp, busy }: { lead: DealRiskLead; onFollowUp: (lead: DealRiskLead) => void; busy: boolean }) {
++  const config = LEVEL_CONFIG[lead.riskLevel];
++  return (
++    <div className="rounded-xl border border-border bg-black/10 p-4">
++      <div className="flex flex-wrap items-start justify-between gap-3">
++        <div className="min-w-0">
++          <p className="truncate font-medium text-foreground">{lead.name}</p>
++          <p className="truncate text-sm text-muted">{lead.company}</p>
++          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
++            <StatusBadge status={lead.status} />
++            <span className="text-xs text-muted-strong">{formatCurrency(lead.value)}</span>
++          </div>
++        </div>
++        <div className="text-right">
++          <p className="text-lg font-semibold text-foreground">
++            {lead.riskScore}
++            <span className="text-xs font-normal text-muted">/100</span>
++          </p>
++          <Badge className={config.badge}>{config.label}</Badge>
++        </div>
++      </div>
++
++      {lead.reasons.length ? (
++        <ul className="mt-3 space-y-1">
++          {lead.reasons.map((reason) => (
++            <li key={reason} className="flex gap-1.5 text-xs text-muted-strong">
++              <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-amber-400" aria-hidden="true" />
++              <span>{reason}</span>
++            </li>
++          ))}
++        </ul>
++      ) : null}
++
++      <p className="mt-3 text-sm">
++        <span className="font-medium text-foreground">Recommended: </span>
++        <span className="text-muted-strong">{lead.recommendedAction}</span>
++      </p>
++
++      <div className="mt-3 flex flex-wrap gap-2">
++        <Link href={`/leads/${lead.id}`}>
++          <Button size="sm" variant="secondary">
++            Open Lead
++          </Button>
++        </Link>
++        <Button size="sm" variant="ghost" onClick={() => onFollowUp(lead)} disabled={busy}>
++          {busy ? "Scheduling..." : "Generate Follow-up"}
++        </Button>
++      </div>
++    </div>
++  );
++}
++
++export default function DealRiskPage() {
++  const [data, setData] = useState<DealRiskRadar | null>(null);
++  const [error, setError] = useState("");
++  const [schedulingId, setSchedulingId] = useState<string | null>(null);
++
++  async function load() {
++    try {
++      const result = await api<DealRiskRadar>("/api/ai/deal-risk");
++      setData(result);
++      setError("");
++    } catch (err) {
++      setError(friendlyError(err));
++    }
++  }
++
++  useEffect(() => {
++    let cancelled = false;
++    api<DealRiskRadar>("/api/ai/deal-risk")
++      .then((result) => {
++        if (cancelled) return;
++        setData(result);
++        setError("");
++      })
++      .catch((err: unknown) => {
++        if (cancelled) return;
++        setError(friendlyError(err));
++      });
++    return () => {
++      cancelled = true;
++    };
++  }, []);
++
++  async function generateFollowUp(lead: DealRiskLead) {
++    setSchedulingId(lead.id);
++    try {
++      const tomorrow = new Date();
++      tomorrow.setDate(tomorrow.getDate() + 1);
++      const date = tomorrow.toISOString().slice(0, 10);
++      await api(`/api/leads/${lead.id}/followups`, {
++        method: "POST",
++        body: JSON.stringify({
++          date,
++          time: "09:00",
++          description: `AI Deal Risk Radar: ${lead.recommendedAction}`,
++        }),
++      });
++      toast.success(`Follow-up scheduled for ${lead.name}`);
++      await load();
++    } catch (err) {
++      toast.error(friendlyError(err));
++    } finally {
++      setSchedulingId(null);
++    }
++  }
++
++  if (error) return <ErrorState message={error} onRetry={load} />;
++  if (!data) {
++    return (
++      <div className="space-y-4">
++        <Skeleton className="h-20" />
++        <Skeleton className="h-64" />
++      </div>
++    );
++  }
++
++  const groups: { level: RiskLevel; leads: DealRiskLead[] }[] = [
++    { level: "High Risk", leads: data.leads.filter((lead) => lead.riskLevel === "High Risk") },
++    { level: "Needs Attention", leads: data.leads.filter((lead) => lead.riskLevel === "Needs Attention") },
++    { level: "Healthy", leads: data.leads.filter((lead) => lead.riskLevel === "Healthy") },
++  ];
++
++  return (
++    <div className="space-y-6">
++      <div>
++        <h1 className="text-2xl font-semibold">AI Deal Risk Radar</h1>
++        <p className="text-sm text-muted">
++          Deterministic risk scoring across your open pipeline, grounded in real follow-up and engagement data.
++          Recommendations only — not guaranteed outcomes.
++        </p>
++      </div>
++
++      <div className="grid gap-4 sm:grid-cols-3">
++        {(["High Risk", "Needs Attention", "Healthy"] as const).map((level) => {
++          const config = LEVEL_CONFIG[level];
++          const count =
++            level === "High Risk" ? data.summary.highRisk : level === "Needs Attention" ? data.summary.needsAttention : data.summary.healthy;
++          const Icon = config.icon;
++          return (
++            <Card key={level} className="flex items-center gap-3">
++              <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${config.badge}`}>
++                <Icon className="h-4 w-4" aria-hidden="true" />
++              </span>
++              <div>
++                <p className="text-xl font-semibold text-foreground">{count}</p>
++                <p className="text-xs text-muted">{config.label}</p>
++              </div>
++            </Card>
++          );
++        })}
++      </div>
++
++      {data.leads.length === 0 ? (
++        <Card>
++          <p className="text-sm text-muted">No open leads to evaluate yet.</p>
++        </Card>
++      ) : (
++        groups.map((group) =>
++          group.leads.length ? (
++            <Card key={group.level}>
++              <CardHeader
++                title={group.level}
++                description={`${group.leads.length} open lead${group.leads.length === 1 ? "" : "s"}`}
++              />
++              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
++                {group.leads.map((lead) => (
++                  <DealRow key={lead.id} lead={lead} onFollowUp={generateFollowUp} busy={schedulingId === lead.id} />
++                ))}
++              </div>
++            </Card>
++          ) : null,
++        )
++      )}
++    </div>
++  );
++}
+diff --git a/app/(app)/leads/[id]/page.tsx b/app/(app)/leads/[id]/page.tsx
+index 4f20563..6599f30 100644
+--- a/app/(app)/leads/[id]/page.tsx
++++ b/app/(app)/leads/[id]/page.tsx
+@@ -2,6 +2,7 @@
+ 
+ import { useEffect, useState } from "react";
+ import { useParams, useRouter } from "next/navigation";
++import { AlertTriangle } from "lucide-react";
+ import { toast } from "sonner";
+ import { EmailGenerator } from "@/components/leads/email-generator";
+ import { FollowUpPanel } from "@/components/leads/follow-up-panel";
+@@ -15,6 +16,7 @@ import { ErrorState, Skeleton } from "@/components/ui/states";
+ import { api } from "@/lib/client";
+ import { formatCurrency, formatDateTime } from "@/lib/utils";
+ import type { FollowUpDTO, LeadDTO, NoteDTO } from "@/types/crm";
++import type { DealRiskLead, DealRiskRadar } from "@/lib/ai/deal-risk";
+ 
+ type Insights = {
+   score: number;
+@@ -34,6 +36,7 @@ export default function LeadDetailPage() {
+   const [notes, setNotes] = useState<NoteDTO[]>([]);
+   const [followUps, setFollowUps] = useState<FollowUpDTO[]>([]);
+   const [insights, setInsights] = useState<Insights | null>(null);
++  const [dealRisk, setDealRisk] = useState<DealRiskLead | null>(null);
+   const [error, setError] = useState("");
+   const [editing, setEditing] = useState(false);
+   const [deleteOpen, setDeleteOpen] = useState(false);
+@@ -52,6 +55,8 @@ export default function LeadDetailPage() {
+           body: JSON.stringify({ leadId: params.id }),
+         }),
+       );
++      const risk = await api<DealRiskRadar>(`/api/ai/deal-risk?leadId=${params.id}`);
++      setDealRisk(risk.leads[0] ?? null);
+       setError("");
+     } catch (err) {
+       setError(err instanceof Error ? err.message : "Failed to load lead");
+@@ -141,6 +146,29 @@ export default function LeadDetailPage() {
+         </Card>
+       </div>
+ 
++      {dealRisk && dealRisk.riskLevel !== "Healthy" ? (
++        <Card>
++          <CardHeader title="Deal Risk" description="From the AI Deal Risk Radar — recommendation only." />
++          <p className="text-2xl font-semibold text-foreground">
++            {dealRisk.riskScore}
++            <span className="text-base font-normal text-muted"> / 100</span>
++            <span className="ml-2 text-sm font-medium text-amber-300">{dealRisk.riskLevel}</span>
++          </p>
++          <ul className="mt-3 space-y-1">
++            {dealRisk.reasons.map((reason) => (
++              <li key={reason} className="flex gap-1.5 text-sm text-muted-strong">
++                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" aria-hidden="true" />
++                <span>{reason}</span>
++              </li>
++            ))}
++          </ul>
++          <p className="mt-3 text-sm">
++            <span className="font-medium text-foreground">Recommended action: </span>
++            <span className="text-muted-strong">{dealRisk.recommendedAction}</span>
++          </p>
++        </Card>
++      ) : null}
++
+       {editing ? (
+         <Card>
+           <CardHeader title="Edit lead" />
+diff --git a/app/api/ai/deal-risk/route.ts b/app/api/ai/deal-risk/route.ts
+new file mode 100644
+index 0000000..fdf5e7e
+--- /dev/null
++++ b/app/api/ai/deal-risk/route.ts
+@@ -0,0 +1,19 @@
++import { NextRequest } from "next/server";
++import { handleError, ok } from "@/lib/api";
++import { buildCrmSnapshot } from "@/lib/ai/context";
++import { buildDealRiskRadar } from "@/lib/ai/deal-risk";
++import { requireApiSession } from "@/lib/auth";
++import { connectDB } from "@/lib/db";
++
++export async function GET(request: NextRequest) {
++  try {
++    await requireApiSession(request);
++    await connectDB();
++
++    const leadId = request.nextUrl.searchParams.get("leadId") ?? undefined;
++    const snapshot = await buildCrmSnapshot();
++    return ok(buildDealRiskRadar(snapshot, leadId));
++  } catch (error) {
++    return handleError(error);
++  }
++}
+diff --git a/components/layout/app-shell.tsx b/components/layout/app-shell.tsx
+index b048ab6..5565c21 100644
+--- a/components/layout/app-shell.tsx
++++ b/components/layout/app-shell.tsx
+@@ -4,6 +4,7 @@ import Link from "next/link";
+ import { usePathname, useRouter } from "next/navigation";
+ import {
+   Activity,
++  AlertTriangle,
+   BarChart3,
+   Bot,
+   Kanban,
+@@ -26,6 +27,7 @@ const NAV = [
+   { href: "/pipeline", label: "Pipeline", icon: Kanban },
+   { href: "/analytics", label: "Analytics", icon: BarChart3 },
+   { href: "/ai", label: "AI Assistant", icon: Bot },
++  { href: "/deal-risk", label: "Deal Risk Radar", icon: AlertTriangle },
+   { href: "/activity", label: "Activity", icon: Activity },
+   { href: "/settings", label: "Settings", icon: Settings },
+ ];
+diff --git a/lib/ai/context.ts b/lib/ai/context.ts
+index a2884a3..049ba66 100644
+--- a/lib/ai/context.ts
++++ b/lib/ai/context.ts
+@@ -1,5 +1,5 @@
+ import { getAnalytics } from "@/lib/analytics/metrics";
+-import { resolveFollowUpStatus } from "@/lib/followups";
++import { followUpDueAt, resolveFollowUpStatus } from "@/lib/followups";
+ import { toLeadDTO } from "@/lib/serializers";
+ import { FollowUp } from "@/models/FollowUp";
+ import { Lead } from "@/models/Lead";
+@@ -111,6 +111,7 @@ export type LeadSnapshot = {
+   overdueFollowUps: number;
+   upcomingFollowUps: number;
+   nextFollowUpAt: string | null;
++  oldestOverdueDays: number | null;
+   daysSinceCreated: number;
+   daysSinceContact: number | null;
+ };
+@@ -174,6 +175,10 @@ export async function buildCrmSnapshot(): Promise<CrmSnapshot> {
+     const nextUpcoming = leadFollowUps
+       .filter((_, index) => resolved[index] === "UPCOMING")
+       .sort((a, b) => +new Date(a.date) - +new Date(b.date))[0];
++    const oldestOverdueDue = leadFollowUps
++      .filter((_, index) => resolved[index] === "OVERDUE")
++      .map((item) => followUpDueAt(item.date, item.time))
++      .sort((a, b) => a.getTime() - b.getTime())[0];
+     const notesCount = noteCountMap.get(dto.id) ?? 0;
+     const score = computeLeadScore(dto, notesCount, overdueFollowUps);
+     const quality = qualityFromScore(dto.status, score);
+@@ -186,6 +191,9 @@ export async function buildCrmSnapshot(): Promise<CrmSnapshot> {
+       overdueFollowUps,
+       upcomingFollowUps,
+       nextFollowUpAt: nextUpcoming ? new Date(nextUpcoming.date).toISOString() : null,
++      oldestOverdueDays: oldestOverdueDue
++        ? Math.max(0, Math.floor((now - oldestOverdueDue.getTime()) / 86400000))
++        : null,
+       daysSinceCreated: Math.max(0, Math.floor((now - new Date(dto.createdAt).getTime()) / 86400000)),
+       daysSinceContact: dto.lastContactedAt
+         ? Math.max(0, Math.floor((now - new Date(dto.lastContactedAt).getTime()) / 86400000))
+diff --git a/lib/ai/deal-risk.ts b/lib/ai/deal-risk.ts
+new file mode 100644
+index 0000000..c1bb8ea
+--- /dev/null
++++ b/lib/ai/deal-risk.ts
+@@ -0,0 +1,157 @@
++import { HIGH_VALUE_THRESHOLD, recommendedActionFor, type CrmSnapshot, type LeadSnapshot } from "@/lib/ai/context";
++import { formatCurrency } from "@/lib/utils";
++
++export type RiskLevel = "Healthy" | "Needs Attention" | "High Risk";
++
++export type DealRiskLead = {
++  id: string;
++  name: string;
++  company: string;
++  status: LeadSnapshot["lead"]["status"];
++  value: number;
++  riskScore: number;
++  riskLevel: RiskLevel;
++  reasons: string[];
++  recommendedAction: string;
++};
++
++export type DealRiskSummary = {
++  highRisk: number;
++  needsAttention: number;
++  healthy: number;
++  total: number;
++};
++
++export type DealRiskRadar = {
++  leads: DealRiskLead[];
++  summary: DealRiskSummary;
++  generatedAt: string;
++};
++
++/**
++ * Deterministic 0-100 risk score for an OPEN lead. Every point traces back
++ * to a real, already-computed CRM signal (overdue follow-ups, contact
++ * recency, pipeline stage, notes, deal value) -- nothing here is invented
++ * or randomized, and the same inputs always produce the same score.
++ */
++export function computeRiskScore(item: LeadSnapshot): number {
++  let risk = 0;
++  const staleDays = item.daysSinceContact ?? item.daysSinceCreated;
++
++  // Overdue follow-ups are the strongest signal: up to 40 points.
++  risk += Math.min(40, item.overdueFollowUps * 20);
++
++  // Recency of contact/creation: up to 30 points.
++  if (staleDays >= 14) risk += 30;
++  else if (staleDays >= 7) risk += 20;
++  else if (staleDays >= 3) risk += 10;
++
++  // Stage stagnation.
++  if ((item.lead.status === "NEW" || item.lead.status === "CONTACTED") && item.daysSinceCreated >= 5) {
++    risk += 10;
++  }
++  if (item.lead.status === "PROPOSAL" && staleDays >= 5) {
++    risk += 10;
++  }
++
++  // Engagement depth.
++  if (item.notesCount === 0) risk += 10;
++
++  // No follow-up scheduled at all (neither overdue nor upcoming).
++  if (item.overdueFollowUps === 0 && item.upcomingFollowUps === 0) risk += 10;
++
++  // A stalling high-value deal is more urgent than an equally stalled small one.
++  if (item.lead.value >= HIGH_VALUE_THRESHOLD && risk > 0) risk += 5;
++
++  return Math.max(0, Math.min(100, risk));
++}
++
++export function riskLevelFromScore(score: number): RiskLevel {
++  if (score >= 60) return "High Risk";
++  if (score >= 30) return "Needs Attention";
++  return "Healthy";
++}
++
++/**
++ * Builds the evidence list shown to the user. Every line is generated from
++ * a real, already-computed field on the snapshot -- no fabricated dates,
++ * counts, or activity.
++ */
++export function buildRiskReasons(item: LeadSnapshot): string[] {
++  const reasons: string[] = [];
++  const staleDays = item.daysSinceContact ?? item.daysSinceCreated;
++
++  if (item.overdueFollowUps > 0) {
++    const dayLabel = item.oldestOverdueDays !== null ? `by ${item.oldestOverdueDays} day${item.oldestOverdueDays === 1 ? "" : "s"}` : "";
++    reasons.push(
++      item.overdueFollowUps === 1
++        ? `Follow-up is overdue ${dayLabel}`.trim()
++        : `${item.overdueFollowUps} follow-ups are overdue, the oldest ${dayLabel}`.trim(),
++    );
++  }
++
++  if (item.lead.lastContactedAt) {
++    if (staleDays >= 3) reasons.push(`Last activity was ${staleDays} day${staleDays === 1 ? "" : "s"} ago`);
++  } else if (item.lead.status !== "NEW" && item.daysSinceCreated >= 3) {
++    reasons.push(`No recorded contact since this lead was created ${item.daysSinceCreated} days ago`);
++  }
++
++  if ((item.lead.status === "NEW" || item.lead.status === "CONTACTED") && item.daysSinceCreated >= 5) {
++    reasons.push(`Lead remains in ${item.lead.status} stage after ${item.daysSinceCreated} days`);
++  }
++
++  if (item.lead.value >= HIGH_VALUE_THRESHOLD && (item.overdueFollowUps > 0 || staleDays >= 3)) {
++    reasons.push(`High-value ${formatCurrency(item.lead.value)} opportunity has no recent activity`);
++  }
++
++  if (item.notesCount === 0) {
++    reasons.push("No notes recorded for this lead");
++  }
++
++  if (item.overdueFollowUps === 0 && item.upcomingFollowUps === 0) {
++    reasons.push("No follow-up is currently scheduled");
++  }
++
++  return reasons.slice(0, 4);
++}
++
++function toDealRiskLead(item: LeadSnapshot): DealRiskLead {
++  const riskScore = computeRiskScore(item);
++  return {
++    id: item.lead.id,
++    name: item.lead.name,
++    company: item.lead.company,
++    status: item.lead.status,
++    value: item.lead.value,
++    riskScore,
++    riskLevel: riskLevelFromScore(riskScore),
++    reasons: buildRiskReasons(item),
++    recommendedAction: recommendedActionFor(item.lead, item.overdueFollowUps),
++  };
++}
++
++/**
++ * Builds the full Deal Risk Radar from a CRM snapshot. Only OPEN leads
++ * (never CONVERTED or LOST) are included, matching the feature's data
++ * safety requirement.
++ */
++export function buildDealRiskRadar(snapshot: CrmSnapshot, leadId?: string): DealRiskRadar {
++  const openLeads = snapshot.leads.filter(
++    (item) => item.lead.status !== "CONVERTED" && item.lead.status !== "LOST",
++  );
++  const scoped = leadId ? openLeads.filter((item) => item.lead.id === leadId) : openLeads;
++  const leads = scoped.map(toDealRiskLead).sort((a, b) => b.riskScore - a.riskScore);
++
++  const summary = leads.reduce(
++    (acc, item) => {
++      if (item.riskLevel === "High Risk") acc.highRisk += 1;
++      else if (item.riskLevel === "Needs Attention") acc.needsAttention += 1;
++      else acc.healthy += 1;
++      acc.total += 1;
++      return acc;
++    },
++    { highRisk: 0, needsAttention: 0, healthy: 0, total: 0 } as DealRiskSummary,
++  );
++
++  return { leads, summary, generatedAt: snapshot.generatedAt };
++}

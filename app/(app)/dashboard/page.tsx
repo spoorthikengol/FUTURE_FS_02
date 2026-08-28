@@ -41,22 +41,27 @@ type FollowUpItem = {
   leadId: string;
 };
 
+type DealRiskSummary = { highRisk: number; needsAttention: number; healthy: number };
+
 export default function DashboardPage() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [followUps, setFollowUps] = useState<FollowUpItem[]>([]);
+  const [riskSummary, setRiskSummary] = useState<DealRiskSummary | null>(null);
   const [error, setError] = useState("");
 
   async function load() {
     try {
-      const [metrics, events, tasks] = await Promise.all([
+      const [metrics, events, tasks, risk] = await Promise.all([
         api<Analytics>("/api/analytics"),
         api<ActivityItem[]>("/api/activity?limit=8"),
         api<FollowUpItem[]>("/api/followups"),
+        api<{ summary: DealRiskSummary }>("/api/ai/deal-risk"),
       ]);
       setAnalytics(metrics);
       setActivity(events);
       setFollowUps(tasks.filter((item) => item.status !== "COMPLETED").slice(0, 6));
+      setRiskSummary(risk.summary);
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard");
@@ -105,6 +110,34 @@ export default function DashboardPage() {
       <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
         <FunnelViz data={analytics.funnel} />
         <div className="space-y-4">
+          <Card>
+            <CardHeader
+              title="AI Deal Risk"
+              action={
+                <Link className="text-xs text-accent" href="/deal-risk">
+                  View Risk Radar
+                </Link>
+              }
+            />
+            {riskSummary ? (
+              <div className="grid grid-cols-3 gap-2 text-center text-sm">
+                <div>
+                  <p className="text-lg font-semibold text-rose-300">{riskSummary.highRisk}</p>
+                  <p className="text-[11px] text-muted">🔴 High Risk</p>
+                </div>
+                <div>
+                  <p className="text-lg font-semibold text-amber-300">{riskSummary.needsAttention}</p>
+                  <p className="text-[11px] text-muted">🟡 Needs Attention</p>
+                </div>
+                <div>
+                  <p className="text-lg font-semibold text-emerald-300">{riskSummary.healthy}</p>
+                  <p className="text-[11px] text-muted">🟢 Healthy</p>
+                </div>
+              </div>
+            ) : (
+              <Skeleton className="h-12" />
+            )}
+          </Card>
           <Card>
             <CardHeader title="Recent activity" action={<Link className="text-xs text-accent" href="/activity">View all</Link>} />
             <ul className="space-y-3">

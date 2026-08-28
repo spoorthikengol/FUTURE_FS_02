@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { DealRiskCard } from "@/components/dashboard/deal-risk-card";
 import { EmailGenerator } from "@/components/leads/email-generator";
 import { FollowUpPanel } from "@/components/leads/follow-up-panel";
 import { LeadForm, leadToForm } from "@/components/leads/lead-form";
@@ -15,6 +16,7 @@ import { ErrorState, Skeleton } from "@/components/ui/states";
 import { api } from "@/lib/client";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import type { FollowUpDTO, LeadDTO, NoteDTO } from "@/types/crm";
+import type { DealRiskBreakdownEntry, DealRiskLevel } from "@/lib/ai/deal-risk";
 
 type Insights = {
   score: number;
@@ -25,6 +27,13 @@ type Insights = {
   factors: { label: string; impact: string; detail: string }[];
   disclaimer: string;
   mode: string;
+  dealRisk: {
+    score: number;
+    level: DealRiskLevel;
+    reasons: string[];
+    recommendedAction: string;
+    breakdown: DealRiskBreakdownEntry[];
+  };
 };
 
 export default function LeadDetailPage() {
@@ -140,6 +149,22 @@ export default function LeadDetailPage() {
           )}
         </Card>
       </div>
+
+      {insights ? (
+        <Card>
+          <CardHeader title="Deal Risk" description="Deterministic and rule-based — not an AI guess." />
+          <DealRiskCard
+            lead={{
+              id: lead.id,
+              name: lead.name,
+              company: lead.company,
+              status: lead.status,
+              value: lead.value,
+              ...insights.dealRisk,
+            }}
+          />
+        </Card>
+      ) : null}
 
       {editing ? (
         <Card>
