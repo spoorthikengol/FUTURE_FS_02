@@ -12,7 +12,9 @@ import {
   Plus,
   RotateCcw,
   Search,
+  Sun,
   Trash2,
+  TrendingUp,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -115,6 +117,26 @@ function bucketForItem(item: FollowUpItem, today: Date): DateBucket {
   return "LATER";
 }
 
+// Human-friendly date phrasing layered on top of the exact date/time,
+// which is always shown alongside this (never replaced) in the UI.
+// Reuses the same local-day primitives as bucketForItem above, so it
+// stays consistent with the existing grouping and stays timezone-safe.
+function smartDateLabel(item: FollowUpItem, today: Date): string {
+  const itemDay = startOfLocalDay(new Date(item.date));
+  const diffDays = Math.round((itemDay.getTime() - today.getTime()) / 86_400_000);
+
+  if (item.status === "OVERDUE") {
+    const overdueDays = Math.max(1, -diffDays);
+    return overdueDays === 1 ? "Overdue by 1 day" : `Overdue by ${overdueDays} days`;
+  }
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Tomorrow";
+  if (diffDays === -1) return "Yesterday";
+  if (diffDays > 1 && diffDays <= 7) return `In ${diffDays} days`;
+  if (diffDays < -1) return `${Math.abs(diffDays)} days ago`;
+  return "";
+}
+
 const STATUS_CLASS: Record<FollowUpStatus, string> = {
   OVERDUE:
     "border-rose-400/20 bg-rose-400/[0.07] text-rose-300",
@@ -162,30 +184,43 @@ function StatCard({
   value,
   icon: Icon,
   tone,
+  helper,
 }: {
   label: string;
-  value: number;
+  value: string | number;
   icon: typeof Clock3;
-  tone: "amber" | "rose" | "emerald";
+  tone: "amber" | "rose" | "emerald" | "accent";
+  helper?: string;
 }) {
   const toneClasses = {
     amber: {
       icon: "bg-amber-400/10 text-amber-300",
       glow: "group-hover:border-amber-400/20",
+      border: "border-border",
     },
     rose: {
       icon: "bg-rose-400/10 text-rose-300",
       glow: "group-hover:border-rose-400/20",
+      border: "border-border",
     },
     emerald: {
       icon: "bg-emerald-400/10 text-emerald-300",
       glow: "group-hover:border-emerald-400/20",
+      border: "border-border",
+    },
+    // Today's own subtle identity, built from the existing accent
+    // token rather than a new color, so it reads as distinct from
+    // Upcoming without introducing brightness.
+    accent: {
+      icon: "bg-accent/10 text-accent",
+      glow: "group-hover:border-accent/30",
+      border: "border-accent/15",
     },
   };
 
   return (
     <div
-      className={`group relative overflow-hidden rounded-2xl border border-border bg-card p-4 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:scale-[1.01] hover:bg-card-hover hover:shadow-[0_14px_40px_-18px_rgba(0,0,0,0.7)] ${toneClasses[tone].glow}`}
+      className={`group relative overflow-hidden rounded-2xl border ${toneClasses[tone].border} bg-card p-4 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:scale-[1.01] hover:bg-card-hover hover:shadow-[0_14px_40px_-18px_rgba(0,0,0,0.7)] ${toneClasses[tone].glow}`}
     >
       <div className="flex items-center justify-between">
         <div>
@@ -195,6 +230,7 @@ function StatCard({
           <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground tabular-nums">
             {value}
           </p>
+          {helper ? <p className="mt-0.5 text-[11px] text-muted">{helper}</p> : null}
         </div>
 
         <div
@@ -211,17 +247,21 @@ function StatCard({
 
 function FollowUpCard({
   item,
+  today,
   onComplete,
   onReopen,
   onEdit,
   onDelete,
 }: {
   item: FollowUpItem;
+  today: Date;
   onComplete: (item: FollowUpItem) => void;
   onReopen: (item: FollowUpItem) => void;
   onEdit: (item: FollowUpItem) => void;
   onDelete: (item: FollowUpItem) => void;
 }) {
+  const dateLabel = smartDateLabel(item, today);
+
   return (
     <li
       className={`group relative overflow-hidden rounded-2xl border border-border bg-card p-4 pl-5 transition-all duration-300 ease-out before:absolute before:bottom-0 before:left-0 before:top-0 before:w-[2px] before:opacity-50 ${STATUS_BORDER[item.status]} hover:-translate-y-0.5 hover:scale-[1.005] hover:border-white/15 hover:bg-card-hover hover:shadow-[0_16px_40px_-20px_rgba(0,0,0,0.75)]`}
@@ -253,6 +293,7 @@ function FollowUpCard({
             <span className="inline-flex items-center gap-1.5">
               <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
               {formatDate(item.date)}
+              {dateLabel ? <span className="text-muted-strong">· {dateLabel}</span> : null}
             </span>
 
             <span className="inline-flex items-center gap-1.5">
@@ -529,6 +570,60 @@ export default function FollowUpsPage() {
     return groups;
   }, [visible, today]);
 
+  // Follow-up Intelligence: every value here is derived from `items`,
+  // the same real data already loaded for the list/calendar — no
+  // separate dataset, no fake numbers, no new API calls.
+  const intelligence = useMemo(() => {
+    const list = items ?? [];
+    const total = list.length;
+    const completedCount = list.filter((item) => item.status === "COMPLETED").length;
+    const completionRate = total > 0 ? Math.round((completedCount / total) * 100) : null;
+
+    const todayCount = list.filter(
+      (item) => item.status !== "COMPLETED" && bucketForItem(item, today) === "TODAY",
+    ).length;
+
+    const overdueItems = list
+      .filter((item) => item.status === "OVERDUE")
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    const todayItems = list
+      .filter((item) => item.status !== "COMPLETED" && bucketForItem(item, today) === "TODAY")
+      .sort((a, b) => a.time.localeCompare(b.time));
+
+    // Leads with more than one overdue follow-up — a real, honestly
+    // derivable signal from the currently-loaded data (no extra fetch).
+    const overdueByLead = new Map<string, { leadName: string; count: number }>();
+    for (const item of overdueItems) {
+      const entry = overdueByLead.get(item.leadId) ?? { leadName: item.leadName, count: 0 };
+      entry.count += 1;
+      overdueByLead.set(item.leadId, entry);
+    }
+    const leadsWithMultipleOverdue = [...overdueByLead.entries()]
+      .filter(([, entry]) => entry.count > 1)
+      .map(([leadId, entry]) => ({ leadId, ...entry }));
+
+    // Momentum: only shown when there is real recent-completion data to
+    // back it — completed items carry a real `updatedAt` from the
+    // backend (set when the status was last saved), so "completed in
+    // the last 7 days" is an honest read of existing data, not a guess.
+    const sevenDaysAgoMs = today.getTime() - 6 * 86_400_000;
+    const completedRecently = list.filter(
+      (item) => item.status === "COMPLETED" && new Date(item.updatedAt).getTime() >= sevenDaysAgoMs,
+    ).length;
+
+    return {
+      total,
+      completedCount,
+      completionRate,
+      todayCount,
+      overdueItems,
+      todayItems,
+      leadsWithMultipleOverdue,
+      completedRecently,
+    };
+  }, [items, today]);
+
   function openCreateForDay(day: Date) {
     setFormError("");
     setForm({ ...emptyForm, date: toLocalDateInputValue(day) });
@@ -784,7 +879,14 @@ export default function FollowUpsPage() {
       </div>
 
       {/* STATS */}
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <StatCard
+          label="Today"
+          value={intelligence.todayCount}
+          icon={Sun}
+          tone="accent"
+        />
+
         <StatCard
           label="Upcoming"
           value={counts.upcoming}
@@ -805,7 +907,90 @@ export default function FollowUpsPage() {
           icon={Check}
           tone="emerald"
         />
+
+        <StatCard
+          label="Completion rate"
+          value={intelligence.completionRate !== null ? `${intelligence.completionRate}%` : "—"}
+          icon={TrendingUp}
+          tone="emerald"
+          helper={
+            intelligence.total > 0
+              ? `${intelligence.completedCount} of ${intelligence.total}`
+              : "No follow-ups yet"
+          }
+        />
       </div>
+
+      {/* FOLLOW-UP HEALTH */}
+      {intelligence.total > 0 &&
+      (intelligence.overdueItems.length > 0 ||
+        intelligence.todayItems.length > 0 ||
+        intelligence.leadsWithMultipleOverdue.length > 0 ||
+        intelligence.completedRecently > 0) ? (
+        <Card className="border-border/80 bg-card/80 p-4 shadow-[0_10px_40px_-30px_rgba(0,0,0,0.8)]">
+          <h2 className="text-sm font-medium text-foreground">Follow-up health</h2>
+          <p className="mt-1 text-xs text-muted">
+            {intelligence.completedCount} of {intelligence.total} follow-ups completed
+            {intelligence.completionRate !== null ? ` · ${intelligence.completionRate}% completion rate` : ""}
+            {intelligence.completedRecently > 0
+              ? ` · ${intelligence.completedRecently} completed in the last 7 days`
+              : ""}
+          </p>
+
+          <ul className="mt-3 space-y-1">
+            {intelligence.overdueItems.length > 0 ? (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => openEdit(intelligence.overdueItems[0])}
+                  className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-xs text-muted-strong transition-colors duration-150 hover:bg-white/[0.04] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-rose-400" aria-hidden="true" />
+                    {intelligence.overdueItems.length === 1
+                      ? "1 follow-up is overdue"
+                      : `${intelligence.overdueItems.length} follow-ups are overdue`}
+                  </span>
+                  <ChevronRight className="h-3.5 w-3.5 text-zinc-600" aria-hidden="true" />
+                </button>
+              </li>
+            ) : null}
+
+            {intelligence.todayItems.length > 0 ? (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => openEdit(intelligence.todayItems[0])}
+                  className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-xs text-muted-strong transition-colors duration-150 hover:bg-white/[0.04] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden="true" />
+                    {intelligence.todayItems.length === 1
+                      ? "1 follow-up is due today"
+                      : `${intelligence.todayItems.length} follow-ups are due today`}
+                  </span>
+                  <ChevronRight className="h-3.5 w-3.5 text-zinc-600" aria-hidden="true" />
+                </button>
+              </li>
+            ) : null}
+
+            {intelligence.leadsWithMultipleOverdue.map((entry) => (
+              <li key={entry.leadId}>
+                <Link
+                  href={`/leads/${entry.leadId}`}
+                  className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-xs text-muted-strong transition-colors duration-150 hover:bg-white/[0.04] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-rose-400" aria-hidden="true" />
+                    {entry.leadName} has {entry.count} overdue follow-ups
+                  </span>
+                  <ChevronRight className="h-3.5 w-3.5 text-zinc-600" aria-hidden="true" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
 
       {/* FILTER / SEARCH */}
       <div className="rounded-2xl border border-border bg-card/70 p-2.5 shadow-[0_1px_0_rgba(255,255,255,0.025)] backdrop-blur-sm">
@@ -914,6 +1099,7 @@ export default function FollowUpsPage() {
                     <FollowUpCard
                       key={item.id}
                       item={item}
+                      today={today}
                       onComplete={complete}
                       onReopen={reopen}
                       onEdit={openEdit}
