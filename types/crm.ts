@@ -20,27 +20,44 @@ export const LEAD_SOURCES = [
 
 export type LeadSource = (typeof LEAD_SOURCES)[number];
 
-export const LEAD_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
+export const LEAD_PRIORITIES = [
+  "LOW",
+  "MEDIUM",
+  "HIGH",
+  "URGENT",
+] as const;
 
 export type LeadPriority = (typeof LEAD_PRIORITIES)[number];
 
-export const FOLLOW_UP_STATUSES = ["UPCOMING", "OVERDUE", "COMPLETED"] as const;
+export const FOLLOW_UP_STATUSES = [
+  "UPCOMING",
+  "OVERDUE",
+  "COMPLETED",
+] as const;
 
-export type FollowUpStatus = (typeof FOLLOW_UP_STATUSES)[number];
+export type FollowUpStatus =
+  (typeof FOLLOW_UP_STATUSES)[number];
 
 export const ACTIVITY_TYPES = [
   "LEAD_CREATED",
   "LEAD_UPDATED",
   "STATUS_CHANGED",
   "NOTE_ADDED",
+
   "FOLLOW_UP_SCHEDULED",
   "FOLLOW_UP_COMPLETED",
+  "FOLLOW_UP_UPDATED",
+  "FOLLOW_UP_REOPENED",
+  "FOLLOW_UP_DELETED",
+
   "LEAD_CONVERTED",
+
   "AI_EMAIL_GENERATED",
   "AI_WHATSAPP_GENERATED",
 ] as const;
 
-export type ActivityType = (typeof ACTIVITY_TYPES)[number];
+export type ActivityType =
+  (typeof ACTIVITY_TYPES)[number];
 
 export type SessionUser = {
   id: string;

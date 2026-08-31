@@ -6,6 +6,7 @@ const NotificationSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true,
     },
 
     type: {
@@ -34,6 +35,7 @@ const NotificationSchema = new mongoose.Schema(
     read: {
       type: Boolean,
       default: false,
+      index: true,
     },
 
     link: {
@@ -49,6 +51,21 @@ NotificationSchema.index({
   read: 1,
   createdAt: -1,
 });
+
+NotificationSchema.index(
+  {
+    userId: 1,
+    type: 1,
+    message: 1,
+    read: 1,
+  },
+  {
+    unique: true,
+    partialFilterExpression: {
+      read: false,
+    },
+  },
+);
 
 export type NotificationDocument =
   mongoose.InferSchemaType<typeof NotificationSchema> & {

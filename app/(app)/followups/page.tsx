@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   CalendarDays,
@@ -470,7 +471,10 @@ function MonthCalendar({
 }
 
 export default function FollowUpsPage() {
+  const searchParams = useSearchParams();
+const followUpId = searchParams.get("followUpId");
   const [items, setItems] = useState<FollowUpItem[] | null>(null);
+  const openedFromNotification = useRef(false);
   const [leads, setLeads] = useState<LeadOption[]>([]);
   const [error, setError] = useState("");
 
@@ -515,6 +519,24 @@ export default function FollowUpsPage() {
   useEffect(() => {
     void load();
   }, []);
+  useEffect(() => {
+  if (!followUpId || !items) return;
+
+  const followUp = items.find(
+    (item) => item.id === followUpId
+  );
+
+  if (!followUp) return;
+
+  setEditing(followUp);
+
+  setEditForm({
+    leadId: followUp.leadId,
+    date: followUp.date.slice(0, 10),
+    time: followUp.time,
+    description: followUp.description,
+  });
+}, [followUpId, items]);
 
   const visible = useMemo(() => {
     if (!items) return [];
@@ -696,6 +718,37 @@ export default function FollowUpsPage() {
       description: item.description,
     });
   }
+  useEffect(() => {
+  if (!items) return;
+
+  if (openedFromNotification.current) return;
+
+  const params = new URLSearchParams(
+    window.location.search,
+  );
+
+  const followUpId = params.get("followUpId");
+
+  if (!followUpId) return;
+
+  const followUp = items.find(
+    (item) => String(item.id) === String(followUpId),
+  );
+
+  if (!followUp) return;
+
+  openedFromNotification.current = true;
+
+  openEdit(followUp);
+
+  // Remove ?followUpId=... from the URL
+  // after opening the correct follow-up.
+  window.history.replaceState(
+    {},
+    "",
+    "/followups",
+  );
+}, [items]);
 
   async function saveEdit() {
     if (!editing) return;
