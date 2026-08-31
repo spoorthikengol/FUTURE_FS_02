@@ -57,6 +57,19 @@ export function toISODate(value: Date) {
   return value.toISOString().slice(0, 10);
 }
 
+export function formatDuration(minutes: number) {
+  const total = Math.max(0, Math.round(minutes));
+  if (total < 60) return `${total}m`;
+  const hours = Math.floor(total / 60);
+  const remainingMinutes = total % 60;
+  if (hours < 24) {
+    return remainingMinutes ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+  }
+  const days = Math.floor(hours / 24);
+  const remainingHours = hours % 24;
+  return remainingHours ? `${days}d ${remainingHours}h` : `${days}d`;
+}
+
 export function serializeDoc<T extends { _id: unknown }>(
   doc: T,
 ): Omit<T, "_id"> & { id: string } {

@@ -8,6 +8,7 @@ import { EmailGenerator } from "@/components/leads/email-generator";
 import { FollowUpPanel } from "@/components/leads/follow-up-panel";
 import { LeadForm, leadToForm } from "@/components/leads/lead-form";
 import { NotesTimeline } from "@/components/leads/notes-timeline";
+import { ResponseBadge } from "@/components/leads/response-badge";
 import { PriorityBadge, StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
@@ -17,6 +18,7 @@ import { api } from "@/lib/client";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import type { FollowUpDTO, LeadDTO, NoteDTO } from "@/types/crm";
 import type { DealRiskBreakdownEntry, DealRiskLevel } from "@/lib/ai/deal-risk";
+import type { SpeedToLeadLead, SpeedToLeadReport } from "@/lib/analytics/speed-to-lead";
 
 type Insights = {
   score: number;
@@ -43,6 +45,7 @@ export default function LeadDetailPage() {
   const [notes, setNotes] = useState<NoteDTO[]>([]);
   const [followUps, setFollowUps] = useState<FollowUpDTO[]>([]);
   const [insights, setInsights] = useState<Insights | null>(null);
+  const [response, setResponse] = useState<SpeedToLeadLead | null>(null);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -61,6 +64,8 @@ export default function LeadDetailPage() {
           body: JSON.stringify({ leadId: params.id }),
         }),
       );
+      const speedToLead = await api<SpeedToLeadReport>("/api/analytics/speed-to-lead");
+      setResponse(speedToLead.leads.find((item) => item.id === params.id) ?? null);
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load lead");
@@ -111,6 +116,16 @@ export default function LeadDetailPage() {
             <div><dt className="text-xs text-muted">Last contact</dt><dd>{formatDateTime(lead.lastContactedAt)}</dd></div>
             <div><dt className="text-xs text-muted">Created</dt><dd>{formatDateTime(lead.createdAt)}</dd></div>
             <div><dt className="text-xs text-muted">Updated</dt><dd>{formatDateTime(lead.updatedAt)}</dd></div>
+            <div>
+              <dt className="text-xs text-muted">Speed to Lead</dt>
+              <dd>
+                {response ? (
+                  <ResponseBadge state={response.state} responseMinutes={response.responseMinutes} />
+                ) : (
+                  "—"
+                )}
+              </dd>
+            </div>
           </dl>
           {lead.message ? (
             <p className="mt-4 rounded-xl bg-white/3 p-3 text-sm text-muted-strong">{lead.message}</p>

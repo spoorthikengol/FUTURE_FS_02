@@ -10,10 +10,12 @@ import {
   RevenueChart,
   SourceChart,
 } from "@/components/dashboard/charts";
+import { SpeedToLeadCard } from "@/components/dashboard/speed-to-lead-card";
 import { Card, CardHeader } from "@/components/ui/card";
 import { ErrorState, Skeleton } from "@/components/ui/states";
 import { api } from "@/lib/client";
 import { formatCurrency, formatDateTime, relativeTime } from "@/lib/utils";
+import type { SpeedToLeadSummary } from "@/lib/analytics/speed-to-lead";
 
 type Analytics = {
   kpis: Record<string, { value: number; change: number }>;
@@ -41,36 +43,83 @@ type FollowUpItem = {
   leadId: string;
 };
 
-type DealRiskSummary = { highRisk: number; needsAttention: number; healthy: number };
+type DealRiskSummary = {
+  highRisk: number;
+  needsAttention: number;
+  healthy: number;
+};
 
 export default function DashboardPage() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [followUps, setFollowUps] = useState<FollowUpItem[]>([]);
-  const [followUpCounts, setFollowUpCounts] = useState({ upcoming: 0, overdue: 0, completed: 0 });
-  const [riskSummary, setRiskSummary] = useState<DealRiskSummary | null>(null);
+  const [followUpCounts, setFollowUpCounts] = useState({
+    upcoming: 0,
+    overdue: 0,
+    completed: 0,
+  });
+  const [riskSummary, setRiskSummary] =
+    useState<DealRiskSummary | null>(null);
+
+  // Speed to Lead
+  const [speedSummary, setSpeedSummary] =
+    useState<SpeedToLeadSummary | null>(null);
+
   const [error, setError] = useState("");
 
   async function load() {
     try {
-      const [metrics, events, tasks, risk] = await Promise.all([
+      const [
+        metrics,
+        events,
+        tasks,
+        risk,
+        speedToLead,
+      ] = await Promise.all([
         api<Analytics>("/api/analytics"),
         api<ActivityItem[]>("/api/activity?limit=8"),
         api<FollowUpItem[]>("/api/followups"),
         api<{ summary: DealRiskSummary }>("/api/ai/deal-risk"),
+
+        // Speed to Lead API
+        api<{ summary: SpeedToLeadSummary }>(
+          "/api/analytics/speed-to-lead",
+        ),
       ]);
+
       setAnalytics(metrics);
       setActivity(events);
-      setFollowUps(tasks.filter((item) => item.status !== "COMPLETED").slice(0, 6));
+
+      setFollowUps(
+        tasks
+          .filter((item) => item.status !== "COMPLETED")
+          .slice(0, 6),
+      );
+
       setFollowUpCounts({
-        upcoming: tasks.filter((item) => item.status === "UPCOMING").length,
-        overdue: tasks.filter((item) => item.status === "OVERDUE").length,
-        completed: tasks.filter((item) => item.status === "COMPLETED").length,
+        upcoming: tasks.filter(
+          (item) => item.status === "UPCOMING",
+        ).length,
+        overdue: tasks.filter(
+          (item) => item.status === "OVERDUE",
+        ).length,
+        completed: tasks.filter(
+          (item) => item.status === "COMPLETED",
+        ).length,
       });
+
       setRiskSummary(risk.summary);
+
+      // Store Speed to Lead summary
+      setSpeedSummary(speedToLead.summary);
+
       setError("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load dashboard");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to load dashboard",
+      );
     }
   }
 
@@ -78,12 +127,18 @@ export default function DashboardPage() {
     void load();
   }, []);
 
-  if (error) return <ErrorState message={error} onRetry={load} />;
+  if (error) {
+    return <ErrorState message={error} onRetry={load} />;
+  }
+
   if (!analytics) {
     return (
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: 7 }).map((_, index) => (
-          <Skeleton key={index} className="h-28" />
+          <Skeleton
+            key={index}
+            className="h-28"
+          />
         ))}
       </div>
     );
@@ -93,102 +148,248 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Page Header */}
       <div>
-        <p className="text-xs uppercase tracking-[0.2em] text-accent">Overview</p>
-        <h1 className="mt-1 text-2xl font-semibold">Dashboard</h1>
-        <p className="text-sm text-muted">Turn leads into relationships with a live view of pipeline health.</p>
+        <p className="text-xs uppercase tracking-[0.2em] text-accent">
+          Overview
+        </p>
+
+        <h1 className="mt-1 text-2xl font-semibold">
+          Dashboard
+        </h1>
+
+        <p className="text-sm text-muted">
+          Turn leads into relationships with a live view of
+          pipeline health.
+        </p>
       </div>
+
+      {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="Total leads" value={k.totalLeads.value} change={k.totalLeads.change} />
-        <KpiCard label="New leads" value={k.newLeads.value} change={k.newLeads.change} />
-        <KpiCard label="Contacted" value={k.contactedLeads.value} change={k.contactedLeads.change} />
-        <KpiCard label="Qualified" value={k.qualifiedLeads.value} change={k.qualifiedLeads.change} />
-        <KpiCard label="Converted" value={k.convertedLeads.value} change={k.convertedLeads.change} />
-        <KpiCard label="Conversion rate" value={k.conversionRate.value} change={k.conversionRate.change} percent />
-        <KpiCard label="Revenue" value={k.revenue.value} change={k.revenue.change} money />
+        <KpiCard
+          label="Total leads"
+          value={k.totalLeads.value}
+          change={k.totalLeads.change}
+        />
+
+        <KpiCard
+          label="New leads"
+          value={k.newLeads.value}
+          change={k.newLeads.change}
+        />
+
+        <KpiCard
+          label="Contacted"
+          value={k.contactedLeads.value}
+          change={k.contactedLeads.change}
+        />
+
+        <KpiCard
+          label="Qualified"
+          value={k.qualifiedLeads.value}
+          change={k.qualifiedLeads.change}
+        />
+
+        <KpiCard
+          label="Converted"
+          value={k.convertedLeads.value}
+          change={k.convertedLeads.change}
+        />
+
+        <KpiCard
+          label="Conversion rate"
+          value={k.conversionRate.value}
+          change={k.conversionRate.change}
+          percent
+        />
+
+        <KpiCard
+          label="Revenue"
+          value={k.revenue.value}
+          change={k.revenue.change}
+          money
+        />
       </div>
+
+      {/* Charts */}
       <div className="grid gap-4 xl:grid-cols-2">
         <LeadGrowthChart data={analytics.growth} />
-        <RevenueChart data={analytics.monthlyRevenue} />
-        <ConversionChart data={analytics.conversionTrend} />
-        <SourceChart data={analytics.sources} />
+
+        <RevenueChart
+          data={analytics.monthlyRevenue}
+        />
+
+        <ConversionChart
+          data={analytics.conversionTrend}
+        />
+
+        <SourceChart
+          data={analytics.sources}
+        />
       </div>
+
+      {/* Funnel + Right Side Cards */}
       <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
         <FunnelViz data={analytics.funnel} />
+
         <div className="space-y-4">
+          {/* Speed to Lead */}
+          {speedSummary ? (
+            <SpeedToLeadCard
+              summary={speedSummary}
+            />
+          ) : (
+            <Skeleton className="h-28" />
+          )}
+
+          {/* AI Deal Risk */}
           <Card>
             <CardHeader
               title="AI Deal Risk"
               action={
-                <Link className="text-xs text-accent" href="/deal-risk">
+                <Link
+                  className="text-xs text-accent"
+                  href="/deal-risk"
+                >
                   View Risk Radar
                 </Link>
               }
             />
+
             {riskSummary ? (
               <div className="grid grid-cols-3 gap-2 text-center text-sm">
                 <div>
-                  <p className="text-lg font-semibold text-rose-300">{riskSummary.highRisk}</p>
-                  <p className="text-[11px] text-muted">🔴 High Risk</p>
+                  <p className="text-lg font-semibold text-rose-300">
+                    {riskSummary.highRisk}
+                  </p>
+
+                  <p className="text-[11px] text-muted">
+                    🔴 High Risk
+                  </p>
                 </div>
+
                 <div>
-                  <p className="text-lg font-semibold text-amber-300">{riskSummary.needsAttention}</p>
-                  <p className="text-[11px] text-muted">🟡 Needs Attention</p>
+                  <p className="text-lg font-semibold text-amber-300">
+                    {riskSummary.needsAttention}
+                  </p>
+
+                  <p className="text-[11px] text-muted">
+                    🟡 Needs Attention
+                  </p>
                 </div>
+
                 <div>
-                  <p className="text-lg font-semibold text-emerald-300">{riskSummary.healthy}</p>
-                  <p className="text-[11px] text-muted">🟢 Healthy</p>
+                  <p className="text-lg font-semibold text-emerald-300">
+                    {riskSummary.healthy}
+                  </p>
+
+                  <p className="text-[11px] text-muted">
+                    🟢 Healthy
+                  </p>
                 </div>
               </div>
             ) : (
               <Skeleton className="h-12" />
             )}
           </Card>
-          <Card>
-            <CardHeader title="Recent activity" action={<Link className="text-xs text-accent" href="/activity">View all</Link>} />
-            <ul className="space-y-3">
-              {activity.map((item) => (
-                <li key={item.id} className="text-sm">
-                  <p>{item.description}</p>
-                  <p className="text-xs text-muted">{relativeTime(item.createdAt)}</p>
-                </li>
-              ))}
-            </ul>
-          </Card>
+
+          {/* Recent Activity */}
           <Card>
             <CardHeader
-              title="Follow-ups"
+              title="Recent activity"
               action={
-                <Link className="text-xs text-accent" href="/followups">
+                <Link
+                  className="text-xs text-accent"
+                  href="/activity"
+                >
                   View all
                 </Link>
               }
             />
+
+            <ul className="space-y-3">
+              {activity.map((item) => (
+                <li
+                  key={item.id}
+                  className="text-sm"
+                >
+                  <p>{item.description}</p>
+
+                  <p className="text-xs text-muted">
+                    {relativeTime(item.createdAt)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </Card>
+
+          {/* Follow-ups */}
+          <Card>
+            <CardHeader
+              title="Follow-ups"
+              action={
+                <Link
+                  className="text-xs text-accent"
+                  href="/followups"
+                >
+                  View all
+                </Link>
+              }
+            />
+
             <div className="mb-3 grid grid-cols-3 gap-2 text-center text-sm">
               <div>
-                <p className="text-lg font-semibold text-amber-300">{followUpCounts.upcoming}</p>
-                <p className="text-[11px] text-muted">Upcoming</p>
+                <p className="text-lg font-semibold text-amber-300">
+                  {followUpCounts.upcoming}
+                </p>
+
+                <p className="text-[11px] text-muted">
+                  Upcoming
+                </p>
               </div>
+
               <div>
-                <p className="text-lg font-semibold text-rose-300">{followUpCounts.overdue}</p>
-                <p className="text-[11px] text-muted">Overdue</p>
+                <p className="text-lg font-semibold text-rose-300">
+                  {followUpCounts.overdue}
+                </p>
+
+                <p className="text-[11px] text-muted">
+                  Overdue
+                </p>
               </div>
+
               <div>
-                <p className="text-lg font-semibold text-emerald-300">{followUpCounts.completed}</p>
-                <p className="text-[11px] text-muted">Completed</p>
+                <p className="text-lg font-semibold text-emerald-300">
+                  {followUpCounts.completed}
+                </p>
+
+                <p className="text-[11px] text-muted">
+                  Completed
+                </p>
               </div>
             </div>
+
             <ul className="space-y-3">
               {followUps.length === 0 ? (
-                <p className="text-sm text-muted">No open follow-ups.</p>
+                <p className="text-sm text-muted">
+                  No open follow-ups.
+                </p>
               ) : (
                 followUps.map((item) => (
-                  <li key={item.id} className="text-sm">
-                    <Link href={`/leads/${item.leadId}`} className="hover:text-accent">
+                  <li
+                    key={item.id}
+                    className="text-sm"
+                  >
+                    <Link
+                      href={`/leads/${item.leadId}`}
+                      className="hover:text-accent"
+                    >
                       {item.leadName} · {item.company}
                     </Link>
+
                     <p className="text-xs text-muted">
-                      {item.description} · {formatDateTime(item.date)}
+                      {item.description} ·{" "}
+                      {formatDateTime(item.date)}
                     </p>
                   </li>
                 ))

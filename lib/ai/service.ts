@@ -19,7 +19,11 @@ import { toNoteDTO } from "@/lib/serializers";
 import { FollowUp } from "@/models/FollowUp";
 import { Lead } from "@/models/Lead";
 import { Note } from "@/models/Note";
-import type { FollowUpStatus, LeadDTO } from "@/types/crm";
+import type {
+  FollowUpDTO,
+  FollowUpStatus,
+  LeadDTO,
+} from "@/types/crm";
 
 export type LeadInsights = {
   score: number;
@@ -338,102 +342,10 @@ async function callLlm(
 
 function computeDealRiskForLead(
   lead: LeadDTO,
-  followUps: {
-    date: Date;
-    time: string;
-    status: FollowUpStatus;
-  }[],
+  followUps: FollowUpDTO[],
 ): DealRiskResult {
-  const resolved = followUps.map((item) =>
-    resolveFollowUpStatus(
-      item.date,
-      item.time,
-      item.status,
-    ),
-  );
-
-  const overdueFollowUps = resolved.filter(
-    (status) => status === "OVERDUE",
-  ).length;
-
-  const upcomingFollowUps = resolved.filter(
-    (status) => status === "UPCOMING",
-  ).length;
-
-  const now = Date.now();
-
-  const overdueDates = followUps
-    .map((item, index) => ({
-      item,
-      status: resolved[index],
-    }))
-    .filter(
-      (entry) => entry.status === "OVERDUE",
-    )
-    .sort(
-      (a, b) =>
-        new Date(a.item.date).getTime() -
-        new Date(b.item.date).getTime(),
-    );
-
-  const earliestOverdue =
-    overdueDates[0]?.item;
-
-  const daysOverdue = earliestOverdue
-    ? Math.max(
-        0,
-        Math.floor(
-          (now -
-            new Date(
-              earliestOverdue.date,
-            ).getTime()) /
-            86400000,
-        ),
-      )
-    : 0;
-
-  const daysSinceCreated = Math.max(
-    0,
-    Math.floor(
-      (now -
-        new Date(
-          lead.createdAt,
-        ).getTime()) /
-        86400000,
-    ),
-  );
-
-  const daysSinceContact =
-    lead.lastContactedAt
-      ? Math.max(
-          0,
-          Math.floor(
-            (now -
-              new Date(
-                lead.lastContactedAt,
-              ).getTime()) /
-              86400000,
-          ),
-        )
-      : null;
-
-  return computeDealRisk({
-  lead,
-  score: computeLeadScore(lead, 0, overdueFollowUps),
-  quality: qualityFromScore(
-    lead.status,
-    computeLeadScore(lead, 0, overdueFollowUps),
-  ),
-  notesCount: 0,
-  overdueFollowUps,
-  upcomingFollowUps,
-  nextFollowUpAt: null,
-  oldestOverdueDays: daysOverdue > 0 ? daysOverdue : null,
-  daysSinceCreated,
-  daysSinceContact,
-});
+  return computeDealRisk(lead, followUps);
 }
-
 /* -------------------------------------------------------------------------- */
 /* Lead insights                                                              */
 /* -------------------------------------------------------------------------- */

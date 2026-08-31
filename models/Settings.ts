@@ -25,6 +25,7 @@ const SettingsSchema = new mongoose.Schema(
     key: { type: String, unique: true, default: "default" },
     marketingSpend: { type: Number, default: 48500 },
     campaigns: { type: [CampaignSchema], default: [] },
+    slaThresholdMinutes: { type: Number, default: 5, min: 1 },
   },
   { timestamps: true },
 );

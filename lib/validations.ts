@@ -96,6 +96,7 @@ export const aiChatSchema = z.object({
 
 export const settingsSchema = z.object({
   marketingSpend: z.coerce.number().min(0),
+  slaThresholdMinutes: z.coerce.number().min(1).optional(),
   campaigns: z
     .array(
       z.object({

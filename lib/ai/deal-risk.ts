@@ -1,173 +1,195 @@
-import type { CrmSnapshot, LeadSnapshot } from "@/lib/ai/context";
-import { HIGH_VALUE_THRESHOLD, recommendedActionFor } from "@/lib/ai/context";
-import type { LeadDTO } from "@/types/crm";
+import type {
+  FollowUpDTO,
+  LeadDTO,
+  LeadStatus,
+} from "@/types/crm";
 
-export type RiskLevel = "Healthy" | "Needs Attention" | "High Risk";
+export type DealRiskLevel =
+  | "High Risk"
+  | "Needs Attention"
+  | "Healthy";
 
-export type RiskBreakdownItem = {
+/*
+ * Backward-compatible alias.
+ * app/(app)/deal-risk/page.tsx imports RiskLevel.
+ */
+export type RiskLevel = DealRiskLevel;
+
+export type DealRiskBreakdownEntry = {
   label: string;
   points: number;
-  description: string;
+  description?: string;
 };
 
+type RiskBreakdownItem = DealRiskBreakdownEntry;
+
+export type LeadSnapshot = {
+  lead: LeadDTO;
+  score?: number;
+  quality?: string;
+  notesCount?: number;
+  overdueFollowUps: number;
+  upcomingFollowUps?: number;
+  nextFollowUpAt?: string | null;
+  oldestOverdueDays?: number | null;
+  daysSinceCreated: number;
+  daysSinceContact: number | null;
+  followUps?: FollowUpDTO[];
+};
 export type DealRiskLead = {
   id: string;
   name: string;
   company: string;
-  status: LeadDTO["status"];
+  status: LeadStatus;
   value: number;
 
   riskScore: number;
   score: number;
-  riskLevel: RiskLevel;
+  riskLevel: DealRiskLevel;
 
   reasons: string[];
   recommendedAction: string;
 
   scoreBreakdown: RiskBreakdownItem[];
+  breakdown: DealRiskBreakdownEntry[];
 
   staleDays: number;
   daysSinceCreated: number;
   daysSinceContact: number | null;
 };
 
-export type DealRiskSummary = {
-  total: number;
-  highRisk: number;
-  needsAttention: number;
-  healthy: number;
-};
-
 export type DealRiskRadar = {
   generatedAt: string;
-  summary: DealRiskSummary;
   leads: DealRiskLead[];
+  summary: {
+    total: number;
+    highRisk: number;
+    needsAttention: number;
+    healthy: number;
+  };
 };
 
-export type DealRiskLevel = RiskLevel;
-export type DealRiskBreakdownEntry = RiskBreakdownItem;
-export type DealRiskResult = DealRiskLead;
+export type CrmSnapshotLike = {
+  leads: Array<{
+    lead: LeadDTO;
+    overdueFollowUps: number;
+    daysSinceCreated: number;
+    daysSinceContact: number | null;
+    followUps?: FollowUpDTO[];
+  }>;
+};
 
-function clamp(score: number): number {
-  return Math.max(0, Math.min(100, score));
+function clamp(value: number): number {
+  return Math.max(0, Math.min(100, value));
 }
 
-function daysSince(date: string | Date | null | undefined): number {
-  if (!date) return 0;
-
-  const timestamp = new Date(date).getTime();
-
-  if (!Number.isFinite(timestamp)) return 0;
-
-  return Math.max(
-    0,
-    Math.floor((Date.now() - timestamp) / (1000 * 60 * 60 * 24)),
-  );
-}
-
-function riskLevelFromScore(score: number): RiskLevel {
+function riskLevelFromScore(score: number): DealRiskLevel {
   if (score >= 60) return "High Risk";
   if (score >= 30) return "Needs Attention";
   return "Healthy";
 }
 
+function recommendedActionFor(
+  lead: LeadDTO,
+  overdueFollowUps: number,
+): string {
+  if (overdueFollowUps > 0) {
+    return "Complete the overdue follow-up and re-engage the lead.";
+  }
+
+  if (lead.status === "LOST") {
+    return "Review the loss reason before attempting further outreach.";
+  }
+
+  if (lead.status === "CONVERTED") {
+    return "Maintain the relationship and look for expansion opportunities.";
+  }
+
+  if (lead.status === "NEW") {
+    return "Contact the lead and qualify the opportunity.";
+  }
+
+  return "Schedule the next follow-up and keep the opportunity moving.";
+}
+
 export function computeRiskBreakdown(
   snapshot: LeadSnapshot,
 ): RiskBreakdownItem[] {
-  const lead = snapshot.lead;
-
+  const { lead } = snapshot;
   const breakdown: RiskBreakdownItem[] = [];
 
-  /*
-   * Stale activity
-   *
-   * Prefer last contact/activity information from the snapshot.
-   * If there is no contact date, use lead creation age.
-   */
-  const staleDays =
-    snapshot.daysSinceContact !== null
-      ? snapshot.daysSinceContact
-      : snapshot.daysSinceCreated;
-
-  if (staleDays >= 3) {
-    breakdown.push({
-      label: "Stale activity",
-      points: Math.min(30, Math.floor(staleDays / 2) * 5),
-      description: `Last activity was ${staleDays} days ago.`,
-    });
-  }
-
-  /*
-   * Stage stagnation
-   */
-  if (
-    ["NEW", "CONTACTED", "PROPOSAL"].includes(lead.status) &&
-    snapshot.daysSinceCreated >= 5
-  ) {
-    breakdown.push({
-      label: "Stage stagnation",
-      points: Math.min(
-        20,
-        Math.floor(snapshot.daysSinceCreated / 5) * 5,
-      ),
-      description: `Lead remains in ${lead.status} stage after ${snapshot.daysSinceCreated} days.`,
-    });
-  }
-
-  /*
-   * Overdue follow-ups
-   */
   if (snapshot.overdueFollowUps > 0) {
     breakdown.push({
       label: "Overdue follow-up",
-      points: Math.min(25, snapshot.overdueFollowUps * 10),
-      description:
-        snapshot.overdueFollowUps === 1
-          ? "There is 1 overdue follow-up."
-          : `There are ${snapshot.overdueFollowUps} overdue follow-ups.`,
+      points: 30,
+      description: `${snapshot.overdueFollowUps} follow-up${
+        snapshot.overdueFollowUps === 1 ? "" : "s"
+      } overdue.`,
     });
   }
 
-  /*
-   * No notes
-   */
-  if (snapshot.notesCount === 0) {
+  if (
+    snapshot.daysSinceContact !== null &&
+    snapshot.daysSinceContact >= 30
+  ) {
     breakdown.push({
-      label: "No notes",
-      points: 10,
-      description: "No notes recorded for this lead.",
+      label: "No recent contact",
+      points: 25,
+      description: `No contact recorded for ${snapshot.daysSinceContact} days.`,
     });
-  }
-
-  /*
-   * No follow-up scheduled
-   */
-  if (!snapshot.nextFollowUpAt && snapshot.upcomingFollowUps === 0) {
+  } else if (
+    snapshot.daysSinceContact !== null &&
+    snapshot.daysSinceContact >= 14
+  ) {
     breakdown.push({
-      label: "No follow-up scheduled",
-      points: 10,
-      description: "No follow-up is currently scheduled.",
+      label: "Stale contact",
+      points: 15,
+      description: `Last contact was ${snapshot.daysSinceContact} days ago.`,
     });
   }
 
-  /*
-   * No contact
-   */
-  if (!lead.lastContactedAt && lead.status !== "NEW") {
+  if (snapshot.daysSinceCreated >= 60) {
     breakdown.push({
-      label: "No contact recorded",
-      points: 10,
-      description: "No contact has been recorded for this lead.",
+      label: "Aging opportunity",
+      points: 15,
+      description: `Lead has been open for ${snapshot.daysSinceCreated} days.`,
+    });
+  } else if (snapshot.daysSinceCreated >= 30) {
+    breakdown.push({
+      label: "Aging opportunity",
+      points: 8,
+      description: `Lead has been open for ${snapshot.daysSinceCreated} days.`,
     });
   }
 
-  /*
-   * High-value opportunity with risk signals
-   */
+  if (lead.status === "NEW") {
+    breakdown.push({
+      label: "Not yet qualified",
+      points: 10,
+      description: "Lead has not progressed beyond the new stage.",
+    });
+  }
+
+  if (lead.status === "CONTACTED") {
+    breakdown.push({
+      label: "Early-stage opportunity",
+      points: 5,
+      description: "Lead has been contacted but is not yet qualified.",
+    });
+  }
+
+  if (lead.priority === "LOW") {
+    breakdown.push({
+      label: "Low priority",
+      points: 5,
+      description: "Lead is currently marked as low priority.",
+    });
+  }
+
   if (
     typeof lead.value === "number" &&
     Number.isFinite(lead.value) &&
-    lead.value >= HIGH_VALUE_THRESHOLD &&
+    lead.value >= 40000 &&
     breakdown.length > 0
   ) {
     breakdown.push({
@@ -180,7 +202,9 @@ export function computeRiskBreakdown(
   return breakdown;
 }
 
-export function computeRiskScore(snapshot: LeadSnapshot): number {
+export function computeRiskScore(
+  snapshot: LeadSnapshot,
+): number {
   return clamp(
     computeRiskBreakdown(snapshot).reduce(
       (total, item) => total + item.points,
@@ -193,33 +217,46 @@ export function buildRiskReasons(
   snapshot: LeadSnapshot,
   breakdown: RiskBreakdownItem[],
 ): string[] {
-  return breakdown.map((item) => item.description || item.label);
+  return breakdown.map(
+    (item: RiskBreakdownItem) =>
+      item.description || item.label,
+  );
 }
 
-function toDealRiskLead(snapshot: LeadSnapshot): DealRiskLead {
+function toDealRiskLead(
+  snapshot: LeadSnapshot,
+): DealRiskLead {
   const lead = snapshot.lead;
 
-  const scoreBreakdown = computeRiskBreakdown(snapshot);
+  const scoreBreakdown =
+    computeRiskBreakdown(snapshot);
 
   const riskScore = clamp(
-    scoreBreakdown.reduce((sum, item) => sum + item.points, 0),
+    scoreBreakdown.reduce(
+      (sum, item) => sum + item.points,
+      0,
+    ),
   );
 
-  const riskLevel = riskLevelFromScore(riskScore);
+  const riskLevel =
+    riskLevelFromScore(riskScore);
 
-  /*
-   * recommendedActionFor expects the complete LeadDTO
-   * plus overdue follow-up count.
-   */
-  const recommendedAction = recommendedActionFor(
-    lead,
-    snapshot.overdueFollowUps,
-  );
+  const recommendedAction =
+    recommendedActionFor(
+      lead,
+      snapshot.overdueFollowUps,
+    );
 
   const staleDays =
     snapshot.daysSinceContact !== null
       ? snapshot.daysSinceContact
       : snapshot.daysSinceCreated;
+
+  const reasons =
+    buildRiskReasons(
+      snapshot,
+      scoreBreakdown,
+    );
 
   return {
     id: lead.id,
@@ -232,76 +269,192 @@ function toDealRiskLead(snapshot: LeadSnapshot): DealRiskLead {
     score: riskScore,
     riskLevel,
 
-    reasons: buildRiskReasons(snapshot, scoreBreakdown),
+    reasons,
     recommendedAction,
 
     scoreBreakdown,
 
+    /*
+     * DealRiskCard expects `breakdown`.
+     */
+    breakdown: scoreBreakdown,
+
     staleDays,
-    daysSinceCreated: snapshot.daysSinceCreated,
-    daysSinceContact: snapshot.daysSinceContact,
+    daysSinceCreated:
+      snapshot.daysSinceCreated,
+    daysSinceContact:
+      snapshot.daysSinceContact,
   };
 }
 
-/**
- * Used by service.ts.
- *
- * IMPORTANT:
- * computeDealRisk accepts a LeadSnapshot, not a partial object.
- * This keeps Deal Risk based on the same CRM snapshot as the rest
- * of the AI system.
- */
-export function computeDealRisk(
-  snapshot: LeadSnapshot,
-): DealRiskResult {
-  return toDealRiskLead(snapshot);
-}
-
-/**
- * Builds the complete Deal Risk page dataset.
- *
- * Optional leadId allows the API route to request one specific lead:
- *
- * buildDealRiskRadar(snapshot, leadId)
- *
- * Without leadId, all open leads are returned.
- */
 export function buildDealRiskRadar(
-  snapshot: CrmSnapshot,
-  leadId?: string,
+  snapshot: CrmSnapshotLike,
 ): DealRiskRadar {
-  let leads = snapshot.leads.filter(
-    (item) =>
-      item.lead.status !== "CONVERTED" &&
-      item.lead.status !== "LOST",
+  const leads = snapshot.leads
+  .filter(
+    (leadSnapshot: LeadSnapshot) =>
+      !["CONVERTED", "LOST"].includes(
+        leadSnapshot.lead.status,
+      ),
+  )
+  .map(
+    (leadSnapshot: LeadSnapshot) =>
+      toDealRiskLead(leadSnapshot),
   );
-
-  if (leadId) {
-    leads = leads.filter((item) => item.lead.id === leadId);
-  }
-
-  const riskLeads = leads.map(toDealRiskLead);
-
-  const highRisk = riskLeads.filter(
-    (lead) => lead.riskLevel === "High Risk",
+  const highRisk = leads.filter(
+    (lead) =>
+      lead.riskLevel === "High Risk",
   ).length;
 
-  const needsAttention = riskLeads.filter(
-    (lead) => lead.riskLevel === "Needs Attention",
+  const needsAttention = leads.filter(
+    (lead) =>
+      lead.riskLevel === "Needs Attention",
   ).length;
 
-  const healthy = riskLeads.filter(
-    (lead) => lead.riskLevel === "Healthy",
+  const healthy = leads.filter(
+    (lead) =>
+      lead.riskLevel === "Healthy",
   ).length;
 
   return {
-    generatedAt: snapshot.generatedAt,
+    generatedAt:
+      new Date().toISOString(),
+
+    leads,
+
     summary: {
-      total: riskLeads.length,
+      total: leads.length,
       highRisk,
       needsAttention,
       healthy,
     },
-    leads: riskLeads,
+  };
+}
+
+export function buildDealRiskForLead(
+  snapshot: LeadSnapshot,
+): DealRiskLead {
+  return toDealRiskLead(snapshot);
+}
+
+/*
+ * Direct deal-risk calculation for a single LeadDTO.
+ *
+ * This is kept separate from LeadSnapshot so existing
+ * service.ts calls can use it directly.
+ */
+export type DealRiskResult = {
+  riskScore: number;
+  score: number;
+  riskLevel: DealRiskLevel;
+  reasons: string[];
+  recommendedAction: string;
+  scoreBreakdown: DealRiskBreakdownEntry[];
+  breakdown: DealRiskBreakdownEntry[];
+};
+
+export function computeDealRisk(
+  lead: LeadDTO,
+  followUps: FollowUpDTO[] = [],
+): DealRiskResult {
+  const now = new Date();
+
+  const normalizedFollowUps =
+    Array.isArray(followUps)
+      ? followUps
+      : [];
+
+  const overdueFollowUps =
+    normalizedFollowUps.filter(
+      (item: FollowUpDTO) => {
+        if (item.status === "OVERDUE") {
+          return true;
+        }
+
+        if (item.status === "COMPLETED") {
+          return false;
+        }
+
+        const date = new Date(item.date);
+
+        if (Number.isNaN(date.getTime())) {
+          return false;
+        }
+
+        if (item.time) {
+          const [hours, minutes] =
+            item.time.split(":").map(Number);
+
+          if (
+            Number.isFinite(hours) &&
+            Number.isFinite(minutes)
+          ) {
+            date.setHours(
+              hours,
+              minutes,
+              0,
+              0,
+            );
+          }
+        }
+
+        return date < now;
+      },
+    ).length;
+
+  const createdAt = new Date(
+    lead.createdAt,
+  );
+
+  const daysSinceCreated =
+    Number.isNaN(createdAt.getTime())
+      ? 0
+      : Math.max(
+          0,
+          Math.floor(
+            (now.getTime() -
+              createdAt.getTime()) /
+              (1000 * 60 * 60 * 24),
+          ),
+        );
+
+  const lastContacted = lead.lastContactedAt
+    ? new Date(lead.lastContactedAt)
+    : null;
+
+  const daysSinceContact =
+    lastContacted &&
+    !Number.isNaN(lastContacted.getTime())
+      ? Math.max(
+          0,
+          Math.floor(
+            (now.getTime() -
+              lastContacted.getTime()) /
+              (1000 * 60 * 60 * 24),
+          ),
+        )
+      : null;
+
+  const snapshot: LeadSnapshot = {
+    lead,
+    followUps: normalizedFollowUps,
+    overdueFollowUps,
+    daysSinceCreated,
+    daysSinceContact,
+  };
+
+  const result =
+    toDealRiskLead(snapshot);
+
+  return {
+    riskScore: result.riskScore,
+    score: result.score,
+    riskLevel: result.riskLevel,
+    reasons: result.reasons,
+    recommendedAction:
+      result.recommendedAction,
+    scoreBreakdown:
+      result.scoreBreakdown,
+    breakdown: result.breakdown,
   };
 }

@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
       (await Settings.create({ key: "default" })).toObject();
     return ok({
       marketingSpend: settings.marketingSpend,
+      slaThresholdMinutes: settings.slaThresholdMinutes ?? 5,
       campaigns: settings.campaigns ?? [],
     });
   } catch (error) {
@@ -33,6 +34,7 @@ export async function PUT(request: NextRequest) {
     );
     return ok({
       marketingSpend: settings.marketingSpend,
+      slaThresholdMinutes: settings.slaThresholdMinutes ?? 5,
       campaigns: settings.campaigns ?? [],
     });
   } catch (error) {
