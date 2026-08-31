@@ -5,6 +5,8 @@ import Link from "next/link";
 import {
   CalendarDays,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   Edit3,
   Plus,
@@ -16,7 +18,7 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import {
   FieldError,
   Input,
@@ -55,6 +57,63 @@ type LeadOption = {
 
 const FILTERS = ["All", "Upcoming", "Overdue", "Completed"] as const;
 type Filter = (typeof FILTERS)[number];
+
+type DateBucket = "OVERDUE" | "TODAY" | "TOMORROW" | "THIS_WEEK" | "LATER" | "COMPLETED";
+
+const DATE_BUCKET_ORDER: DateBucket[] = ["OVERDUE", "TODAY", "TOMORROW", "THIS_WEEK", "LATER", "COMPLETED"];
+const DATE_BUCKET_LABEL: Record<DateBucket, string> = {
+  OVERDUE: "Overdue",
+  TODAY: "Today",
+  TOMORROW: "Tomorrow",
+  THIS_WEEK: "This week",
+  LATER: "Later",
+  COMPLETED: "Completed",
+};
+const DATE_BUCKET_DOT: Record<DateBucket, string> = {
+  OVERDUE: "bg-rose-400",
+  TODAY: "bg-accent",
+  TOMORROW: "bg-amber-400",
+  THIS_WEEK: "bg-amber-400/70",
+  LATER: "bg-zinc-500",
+  COMPLETED: "bg-emerald-400",
+};
+
+// Local-calendar-day helpers. Deliberately NOT using date.toISOString().slice(0, 10)
+// anywhere a user-facing local date is derived -- toISOString() converts to UTC
+// first, which shifts the calendar day by one in negative UTC-offset timezones
+// (e.g. a browser in UTC-5 clicking "today" late in the evening would compute
+// tomorrow's UTC date). These helpers stay in local time throughout.
+function isSameLocalDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function startOfLocalDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function addLocalDays(date: Date, days: number) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+}
+
+function toLocalDateInputValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function bucketForItem(item: FollowUpItem, today: Date): DateBucket {
+  if (item.status === "COMPLETED") return "COMPLETED";
+  if (item.status === "OVERDUE") return "OVERDUE";
+  // UPCOMING
+  const itemDay = startOfLocalDay(new Date(item.date));
+  if (isSameLocalDay(itemDay, today)) return "TODAY";
+  const tomorrow = addLocalDays(today, 1);
+  if (isSameLocalDay(itemDay, tomorrow)) return "TOMORROW";
+  const weekEnd = addLocalDays(today, 7);
+  if (itemDay.getTime() > tomorrow.getTime() && itemDay.getTime() <= weekEnd.getTime()) return "THIS_WEEK";
+  return "LATER";
+}
 
 const STATUS_CLASS: Record<FollowUpStatus, string> = {
   OVERDUE:
@@ -251,6 +310,124 @@ function FollowUpCard({
   );
 }
 
+function MonthCalendar({
+  month,
+  items,
+  today,
+  onPrevMonth,
+  onNextMonth,
+  onToday,
+  onScheduleDay,
+  onOpenFollowUp,
+}: {
+  month: Date;
+  items: FollowUpItem[];
+  today: Date;
+  onPrevMonth: () => void;
+  onNextMonth: () => void;
+  onToday: () => void;
+  onScheduleDay: (day: Date) => void;
+  onOpenFollowUp: (item: FollowUpItem) => void;
+}) {
+  const days = useMemo(() => {
+    const year = month.getFullYear();
+    const m = month.getMonth();
+    const firstOfMonth = new Date(year, m, 1);
+    const gridStart = addLocalDays(firstOfMonth, -firstOfMonth.getDay());
+    return Array.from({ length: 42 }, (_, i) => {
+      const day = addLocalDays(gridStart, i);
+      const dayItems = items
+        .filter((item) => isSameLocalDay(startOfLocalDay(new Date(item.date)), day))
+        .sort((a, b) => a.time.localeCompare(b.time));
+      return { day, inMonth: day.getMonth() === m, items: dayItems };
+    });
+  }, [month, items]);
+
+  const monthLabel = month.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
+  return (
+    <Card className="border-border/80 bg-card/80 p-4 shadow-[0_10px_40px_-30px_rgba(0,0,0,0.8)]">
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-foreground">{monthLabel}</h2>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onPrevMonth}
+            aria-label="Previous month"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted transition-colors duration-200 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+          >
+            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={onToday}
+            className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted transition-colors duration-200 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+          >
+            Today
+          </button>
+          <button
+            type="button"
+            onClick={onNextMonth}
+            aria-label="Next month"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted transition-colors duration-200 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+          >
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-7 gap-px overflow-hidden rounded-xl border border-border bg-border text-[11px]">
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((label) => (
+          <div key={label} className="bg-card px-2 py-1.5 text-center font-medium text-muted" aria-hidden="true">
+            {label}
+          </div>
+        ))}
+        {days.map(({ day, inMonth, items: dayItems }) => {
+          const isToday = isSameLocalDay(day, today);
+          const dateLabel = day.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+          return (
+            <div key={day.toISOString()} className={`min-h-[86px] bg-card p-1 ${inMonth ? "" : "opacity-40"}`}>
+              <button
+                type="button"
+                onClick={() => onScheduleDay(day)}
+                aria-label={
+                  dayItems.length > 0
+                    ? `${dateLabel}, ${dayItems.length} follow-up${dayItems.length === 1 ? "" : "s"}. Schedule another follow-up.`
+                    : `${dateLabel}. Schedule a follow-up.`
+                }
+                className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] transition-colors duration-150 hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                  isToday ? "bg-accent/15 font-semibold text-accent" : "text-muted"
+                }`}
+              >
+                {day.getDate()}
+              </button>
+              <div className="mt-1 space-y-1">
+                {dayItems.slice(0, 3).map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => onOpenFollowUp(item)}
+                    aria-label={`${item.time}, ${item.leadName}, ${item.status.toLowerCase()}. Open follow-up.`}
+                    className="flex w-full items-center gap-1 truncate rounded-md bg-white/[0.05] px-1.5 py-0.5 text-left text-[10px] text-muted-strong transition-colors duration-150 hover:bg-white/[0.09] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                  >
+                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${DATE_BUCKET_DOT[bucketForItem(item, today)]}`} aria-hidden="true" />
+                    <span className="truncate">
+                      {item.time} {item.leadName}
+                    </span>
+                  </button>
+                ))}
+                {dayItems.length > 3 ? (
+                  <p className="px-1.5 text-[10px] text-muted">+{dayItems.length - 3} more</p>
+                ) : null}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
 export default function FollowUpsPage() {
   const [items, setItems] = useState<FollowUpItem[] | null>(null);
   const [leads, setLeads] = useState<LeadOption[]>([]);
@@ -258,6 +435,8 @@ export default function FollowUpsPage() {
 
   const [filter, setFilter] = useState<Filter>("All");
   const [query, setQuery] = useState("");
+  const [view, setView] = useState<"list" | "calendar">("list");
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date());
 
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState(emptyForm);
@@ -334,6 +513,27 @@ export default function FollowUpsPage() {
       ).length,
     };
   }, [items]);
+
+  const today = useMemo(() => startOfLocalDay(new Date()), []);
+
+  const groupedVisible = useMemo(() => {
+    const groups: Record<DateBucket, FollowUpItem[]> = {
+      OVERDUE: [],
+      TODAY: [],
+      TOMORROW: [],
+      THIS_WEEK: [],
+      LATER: [],
+      COMPLETED: [],
+    };
+    for (const item of visible) groups[bucketForItem(item, today)].push(item);
+    return groups;
+  }, [visible, today]);
+
+  function openCreateForDay(day: Date) {
+    setFormError("");
+    setForm({ ...emptyForm, date: toLocalDateInputValue(day) });
+    setShowCreate(true);
+  }
 
   async function createFollowUp() {
     if (
@@ -610,25 +810,50 @@ export default function FollowUpsPage() {
       {/* FILTER / SEARCH */}
       <div className="rounded-2xl border border-border bg-card/70 p-2.5 shadow-[0_1px_0_rgba(255,255,255,0.025)] backdrop-blur-sm">
         <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-wrap gap-1">
-            {FILTERS.map((option) => {
-              const active = filter === option;
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap gap-1">
+              {FILTERS.map((option) => {
+                const active = filter === option;
 
-              return (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => setFilter(option)}
-                  className={`rounded-xl px-3.5 py-2 text-xs font-medium transition-all duration-200 ease-out ${
-                    active
-                      ? "bg-accent/10 text-accent shadow-[inset_0_0_0_1px_rgba(45,212,191,0.22)]"
-                      : "text-muted hover:bg-white/[0.035] hover:text-foreground"
-                  }`}
-                >
-                  {option}
-                </button>
-              );
-            })}
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => setFilter(option)}
+                    className={`rounded-xl px-3.5 py-2 text-xs font-medium transition-all duration-200 ease-out ${
+                      active
+                        ? "bg-accent/10 text-accent shadow-[inset_0_0_0_1px_rgba(45,212,191,0.22)]"
+                        : "text-muted hover:bg-white/[0.035] hover:text-foreground"
+                    }`}
+                  >
+                    {option}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex rounded-xl border border-border/70 p-0.5" role="group" aria-label="View">
+              <button
+                type="button"
+                onClick={() => setView("list")}
+                aria-pressed={view === "list"}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                  view === "list" ? "bg-white/[0.08] text-foreground" : "text-muted hover:text-foreground"
+                }`}
+              >
+                List
+              </button>
+              <button
+                type="button"
+                onClick={() => setView("calendar")}
+                aria-pressed={view === "calendar"}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                  view === "calendar" ? "bg-white/[0.08] text-foreground" : "text-muted hover:text-foreground"
+                }`}
+              >
+                Calendar
+              </button>
+            </div>
           </div>
 
           <div className="relative w-full lg:max-w-xs">
@@ -648,39 +873,59 @@ export default function FollowUpsPage() {
       </div>
 
       {/* CONTENT */}
-<Card className="overflow-hidden border-border/80 bg-card/80 shadow-[0_10px_40px_-30px_rgba(0,0,0,0.8)]">
-  <CardHeader
-    title={`${visible.length} follow-up${visible.length === 1 ? "" : "s"}${
-      filter !== "All" ? ` · ${filter}` : ""
-    }`}
-  />
-
-  {visible.length === 0 ? (
-    <div className="px-4 pb-4">
-      <EmptyState
-        title="No follow-ups here"
-        description={
-          query || filter !== "All"
-            ? "Try a different filter or search."
-            : "Create your first follow-up to get started."
-        }
-      />
-    </div>
-  ) : (
-    <ul className="space-y-2.5 px-4 pb-4">
-      {visible.map((item) => (
-        <FollowUpCard
-          key={item.id}
-          item={item}
-          onComplete={complete}
-          onReopen={reopen}
-          onEdit={openEdit}
-          onDelete={setDeleting}
+      {view === "calendar" ? (
+        <MonthCalendar
+          month={calendarMonth}
+          items={visible}
+          today={today}
+          onPrevMonth={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}
+          onNextMonth={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}
+          onToday={() => setCalendarMonth(new Date())}
+          onScheduleDay={openCreateForDay}
+          onOpenFollowUp={openEdit}
         />
-      ))}
-    </ul>
-  )}
-</Card>
+      ) : visible.length === 0 ? (
+        <Card className="overflow-hidden border-border/80 bg-card/80 shadow-[0_10px_40px_-30px_rgba(0,0,0,0.8)]">
+          <div className="px-4 pb-4 pt-4">
+            <EmptyState
+              title="No follow-ups here"
+              description={
+                query || filter !== "All"
+                  ? "Try a different filter or search."
+                  : "Create your first follow-up to get started."
+              }
+            />
+          </div>
+        </Card>
+      ) : (
+        <div className="space-y-6">
+          {DATE_BUCKET_ORDER.filter((bucket) => groupedVisible[bucket].length > 0).map((bucket) => (
+            <section key={bucket}>
+              <div className="mb-2.5 flex items-center gap-2 px-0.5">
+                <span className={`h-1.5 w-1.5 rounded-full ${DATE_BUCKET_DOT[bucket]}`} aria-hidden="true" />
+                <h2 className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-strong">
+                  {DATE_BUCKET_LABEL[bucket]}
+                </h2>
+                <span className="text-xs text-muted">{groupedVisible[bucket].length}</span>
+              </div>
+              <Card className="overflow-hidden border-border/80 bg-card/80 shadow-[0_10px_40px_-30px_rgba(0,0,0,0.8)]">
+                <ul className="space-y-2.5 p-4">
+                  {groupedVisible[bucket].map((item) => (
+                    <FollowUpCard
+                      key={item.id}
+                      item={item}
+                      onComplete={complete}
+                      onReopen={reopen}
+                      onEdit={openEdit}
+                      onDelete={setDeleting}
+                    />
+                  ))}
+                </ul>
+              </Card>
+            </section>
+          ))}
+        </div>
+      )}
 
       {/* CREATE MODAL */}
       <Modal
