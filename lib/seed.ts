@@ -428,10 +428,18 @@ export async function seedDatabase(force = false) {
     ]);
   }
 
-  const passwordHash = await bcrypt.hash("VeloraAdmin123!", 12);
+    const adminEmail = process.env.ADMIN_EMAIL;
+  const adminPassword = process.env.ADMIN_PASSWORD;
+
+  if (!adminEmail || !adminPassword) {
+    throw new Error("Missing ADMIN_EMAIL or ADMIN_PASSWORD");
+  }
+
+  const passwordHash = await bcrypt.hash(adminPassword, 12);
+
   await User.create({
     name: "Alex Rivera",
-    email: "ivan.p@example.net",
+    email: adminEmail.toLowerCase(),
     passwordHash,
     role: "admin",
   });
