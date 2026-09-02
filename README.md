@@ -1,5 +1,3 @@
-# VeloraCRM
-
 ### Turn leads into relationships.
 
 VeloraCRM is an AI-powered client lead management system built as **Task 2 of the Future Interns Full Stack Web Development Internship**.
@@ -12,7 +10,7 @@ It is designed for modern revenue teams to manage website-generated leads throug
 
 **Program:** Future Interns — Full Stack Web Development Internship  
 **Task:** Task 2 — Client Lead Management System  
-**Project:** VeloraCRM
+**Project:** VeloraCRM  
 
 VeloraCRM was developed to manage client leads generated through website contact forms and provide a complete workflow from lead capture to conversion.
 
@@ -122,9 +120,11 @@ veloracrm/
 │   └── seed.ts
 │
 └── proxy.ts
+```
 
+---
 
-## **🤖 AI Layer**
+## 🤖 AI Layer
 
 VeloraCRM includes an AI assistant designed to help users understand and manage leads more efficiently.
 
@@ -138,7 +138,7 @@ VeloraCRM includes an AI assistant designed to help users understand and manage 
 - Natural-language questions about CRM data
 - Deterministic fallback responses when the AI provider is unavailable
 
-###**AI Reliability**
+### AI Reliability
 
 The AI service includes:
 
@@ -150,7 +150,7 @@ The AI service includes:
 
 ---
 
-## **📊 Analytics & Forecasting**
+## 📊 Analytics & Forecasting
 
 The analytics dashboard provides an overview of CRM performance and sales activity.
 
@@ -169,7 +169,7 @@ It includes:
 
 ---
 
-## **🗄️ MongoDB Setup**
+## 🗄️ MongoDB Setup
 
 VeloraCRM uses MongoDB Atlas for persistent data storage.
 
@@ -177,79 +177,99 @@ Create a MongoDB Atlas cluster and configure the connection string in your envir
 
 Example:
 
-    MONGODB_URI=mongodb://username:password@host1:27017,host2:27017,host3:27017/?ssl=true&replicaSet=replicaSetName&authSource=admin&appName=VeloraCRM
+```env
+MONGODB_URI=mongodb://username:password@host1:27017,host2:27017,host3:27017/?ssl=true&replicaSet=replicaSetName&authSource=admin&appName=VeloraCRM
+```
 
 Make sure your MongoDB Atlas network access settings allow connections from your development or deployment environment.
 
 ---
 
-## **🔐 Environment Variables**
+## 🔐 Environment Variables
 
 Create a `.env.local` file in the project root:
 
-    MONGODB_URI=your_mongodb_connection_string
-    SESSION_SECRET=your_session_secret
-    AI_API_KEY=your_ai_api_key
-    AI_BASE_URL=your_ai_provider_base_url
-    AI_MODEL=your_ai_model
+```env
+MONGODB_URI=your_mongodb_connection_string
+SESSION_SECRET=your_session_secret
+AI_API_KEY=your_ai_api_key
+AI_BASE_URL=your_ai_provider_base_url
+AI_MODEL=your_ai_model
+```
 
 Never commit `.env.local` or any file containing production secrets to GitHub.
 
 ---
 
-## **🚀 Installation**
+## 🚀 Installation
 
 Clone the repository:
 
-    git clone https://github.com/spoorthikengol/FUTURE_FS_02.git
+```bash
+git clone https://github.com/spoorthikengol/FUTURE_FS_02.git
+```
 
 Navigate into the project:
 
-    cd FUTURE_FS_02
+```bash
+cd FUTURE_FS_02
+```
 
 Install dependencies:
 
-    npm install
+```bash
+npm install
+```
 
 Create your `.env.local` file and configure the required environment variables.
 
 ---
 
-## **💻 Local Development**
+## 💻 Local Development
 
 Start the development server:
 
-    npm run dev
+```bash
+npm run dev
+```
 
 Open the application at:
 
-    http://localhost:3000
+```text
+http://localhost:3000
+```
 
 Build the project for production:
 
-    npm run build
+```bash
+npm run build
+```
 
 Run TypeScript validation:
 
-    npx tsc --noEmit
+```bash
+npx tsc --noEmit
+```
 
 ---
 
-## **👤 Demo Login**
+## 👤 Demo Login
 
 For demonstration purposes, the application includes a demo login account.
 
 **Email:**
-
-    ivan.p@example.net
+```text
+ivan.p@example.net
+```
 
 **Password:**
-
-    VeloraAdmin123!
+```text
+VeloraAdmin123!
+```
 
 ---
 
-## **🔌 API Documentation**
+## 🔌 API Documentation
 
 The application provides API routes for:
 
@@ -267,7 +287,7 @@ All protected API routes require an authenticated session.
 
 ---
 
-## **🔄 Lead Management Workflow**
+## 🔄 Lead Management Workflow
 
 The CRM supports the complete lead management workflow:
 
@@ -291,13 +311,12 @@ Users can:
 
 ---
 
-## **🌐 Deployment**
+## 🌐 Deployment
 
 The application is deployed using Vercel.
 
-**Production:**
-
-    https://veloracrm.vercel.app
+**Production:**  
+[https://veloracrm.vercel.app](https://veloracrm.vercel.app)
 
 The project uses MongoDB Atlas for production database storage.
 
@@ -305,7 +324,7 @@ Environment variables must be configured separately in the Vercel project settin
 
 ---
 
-## 🔮 **Future Improvements**
+## 🔮 Future Improvements
 
 Potential future enhancements include:
 
@@ -322,7 +341,7 @@ Potential future enhancements include:
 
 ---
 
-## **🎓 Internship Context**
+## 🎓 Internship Context
 
 This project was developed as part of the **Future Interns Full Stack Web Development Internship — Task 2**.
 
@@ -330,16 +349,15 @@ The objective was to build a practical client lead management system capable of 
 
 ---
 
-## **📄 License**
+## 📄 License
 
 This project is created for educational and internship purposes.
 
 ---
 
-## **👩‍💻 Author**
+## 👩‍💻 Author
 
 **Spoorthi K P**
 
-GitHub: `https://github.com/spoorthikengol/FUTURE_FS_02`
-
-Project: **VeloraCRM — Future Interns Task 2**
+- **GitHub:** [spoorthikengol](https://github.com/spoorthikengol/FUTURE_FS_02)
+- **Project:** VeloraCRM — Future Interns Task 2
