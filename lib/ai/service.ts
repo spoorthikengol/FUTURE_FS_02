@@ -277,63 +277,94 @@ async function callLlm(
     return null;
   }
 
-  try {
-    const response = await fetch(
-      `${baseUrl.replace(/\/$/, "")}/chat/completions`,
-      {
-        method: "POST",
+  // One retry with a short backoff, but only for transient failures
+  // (429 rate limit, 5xx provider errors) — never for 4xx client
+  // errors like a bad/expired key, which won't succeed on retry.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const controller = new AbortController();
+    // Guards against a hung provider request leaving the CRM request
+    // pending indefinitely; the rest of the app must stay responsive
+    // even if the AI provider never answers.
+    const timeout = setTimeout(() => controller.abort(), 15_000);
 
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
+    try {
+      const response = await fetch(
+        `${baseUrl.replace(/\/$/, "")}/chat/completions`,
+        {
+          method: "POST",
+
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+
+          body: JSON.stringify({
+            model,
+            temperature: 0.4,
+
+            messages: [
+              {
+                role: "system",
+                content: system,
+              },
+              {
+                role: "user",
+                content: prompt,
+              },
+            ],
+          }),
+
+          signal: controller.signal,
         },
+      );
 
-        body: JSON.stringify({
-          model,
-          temperature: 0.4,
+      if (!response.ok) {
+        // Never log response bodies here — some providers echo the
+        // request (which could include the key in error payloads on
+        // misconfigured proxies); the status code alone is enough to
+        // diagnose from server logs without risking a key leak.
+        console.error(
+          "AI provider error",
+          response.status,
+        );
 
-          messages: [
-            {
-              role: "system",
-              content: system,
-            },
-            {
-              role: "user",
-              content: prompt,
-            },
-          ],
-        }),
-      },
-    );
+        const isTransient = response.status === 429 || response.status >= 500;
+        if (isTransient && attempt === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          continue;
+        }
 
-    if (!response.ok) {
+        return null;
+      }
+
+      const json = (await response.json()) as {
+        choices?: {
+          message?: {
+            content?: string;
+          };
+        }[];
+      };
+
+      return (
+        json.choices?.[0]?.message?.content ?? null
+      );
+    } catch (error) {
+      const isAbort = error instanceof Error && error.name === "AbortError";
+
       console.error(
-        "AI provider error",
-        response.status,
+        isAbort
+          ? "AI provider request timed out"
+          : "AI provider request failed",
+        isAbort ? undefined : error,
       );
 
       return null;
+    } finally {
+      clearTimeout(timeout);
     }
-
-    const json = (await response.json()) as {
-      choices?: {
-        message?: {
-          content?: string;
-        };
-      }[];
-    };
-
-    return (
-      json.choices?.[0]?.message?.content ?? null
-    );
-  } catch (error) {
-    console.error(
-      "AI provider request failed",
-      error,
-    );
-
-    return null;
   }
+
+  return null;
 }
 
 /* -------------------------------------------------------------------------- */

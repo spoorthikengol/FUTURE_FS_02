@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import {
   ChevronLeft,
   ChevronRight,
+  Download,
   Search,
   Trash2,
   Users,
@@ -313,10 +314,7 @@ export default function LeadsPage() {
   /* ------------------------------------------------------------------------ */
 
   const speedById = useMemo(() => {
-    const map = new Map<
-      string,
-      SpeedToLeadLead
-    >();
+    const map = new Map<string, SpeedToLeadLead>();
 
     for (
       const lead of speedToLead?.leads ?? []
@@ -429,14 +427,25 @@ export default function LeadsPage() {
           </p>
         </div>
 
-        <Button
-          onClick={() =>
-            setCreateOpen(true)
-          }
-          className="transition-all duration-200 ease-out hover:-translate-y-px hover:scale-[1.02] hover:shadow-[0_8px_20px_-6px_rgba(45,212,191,0.45)]"
-        >
-          New lead
-        </Button>
+        <div className="flex items-center gap-2">
+          <a
+            href={`/api/leads/export?${query}`}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium text-muted-strong transition-all duration-200 ease-out hover:-translate-y-px hover:border-white/20 hover:text-foreground"
+            aria-label="Export currently filtered leads as CSV"
+          >
+            <Download className="h-3.5 w-3.5" aria-hidden="true" />
+            Export CSV
+          </a>
+
+          <Button
+            onClick={() =>
+              setCreateOpen(true)
+            }
+            className="transition-all duration-200 ease-out hover:-translate-y-px hover:scale-[1.02] hover:shadow-[0_8px_20px_-6px_rgba(45,212,191,0.45)]"
+          >
+            New lead
+          </Button>
+        </div>
       </div>
 
       {/* ================================================================== */}

@@ -26,11 +26,14 @@ export async function GET(request: NextRequest) {
     if (status) filter.status = status;
     if (source) filter.source = source;
     if (priority) filter.priority = priority;
-    if (q) {
+        if (q) {
       filter.$or = [
         { name: { $regex: q, $options: "i" } },
         { email: { $regex: q, $options: "i" } },
         { company: { $regex: q, $options: "i" } },
+        { phone: { $regex: q, $options: "i" } },
+        { source: { $regex: q, $options: "i" } },
+        { status: { $regex: q, $options: "i" } },
       ];
     }
 

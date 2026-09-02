@@ -489,7 +489,7 @@ export function AiResponseCard({
             </p>
 
             <div className="flex flex-wrap gap-1.5">
-              {answer.relatedLeadIds.map((leadId) => (
+              {Array.from(new Set(answer.relatedLeadIds)).map((leadId) => (
                 <button
                   key={leadId}
                   type="button"
