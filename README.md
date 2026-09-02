@@ -18,10 +18,9 @@ track sales pipelines and stay organized with follow-ups.
 VeloraCRM was developed to manage client leads generated through website contact forms and provide a complete workflow from lead capture to conversion.
 
 ---
-=======
 Developed as part of the **Future Interns Full Stack Web Development
 Internship --- Task 2**.
->>>>>>> ce22463 (Update README)
+
 
 ## ✨ Features
 
@@ -116,8 +115,6 @@ veloracrm/
 └── proxy.ts
 ```
 
----
-=======
 -   Next.js
 -   TypeScript
 -   MongoDB
