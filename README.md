@@ -37,7 +37,7 @@ Internship --- Task 2**.
 
 ## 🛠️ Tech Stack
 
-<<<<<<< HEAD
+
 ### Frontend
 
 - Next.js 16
@@ -124,7 +124,6 @@ veloracrm/
 -   Tailwind CSS
 -   AI Integration
 -   Vercel
->>>>>>> ce22463 (Update README)
 
 ## 🤖 AI Layer
 
