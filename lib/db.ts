@@ -1,7 +1,11 @@
 import mongoose from "mongoose";
+import dns from "node:dns";
 
 import { getMongoUri } from "@/lib/env";
 import { seedDatabase } from "@/lib/seed";
+dns.setServers(["192.168.137.18"]);
+
+console.log("MongoDB DNS servers:", dns.getServers());
 
 type MongooseCache = {
   conn: typeof mongoose | null;
@@ -18,6 +22,15 @@ const cache: MongooseCache = globalForMongoose.mongooseCache ?? {
 };
 
 globalForMongoose.mongooseCache = cache;
+
+// Fix MongoDB Atlas SRV DNS resolution on this network.
+// This runs inside the Node.js server where MongoDB is accessed.
+try {
+  dns.setServers(["192.168.137.18"]);
+  console.log("MongoDB DNS servers:", dns.getServers());
+} catch (error) {
+  console.error("Failed to configure DNS:", error);
+}
 
 function redactUri(uri: string) {
   return uri.replace(/\/\/[^@/]+@/, "//<redacted>@");
@@ -44,7 +57,7 @@ export async function connectDB() {
     return mongoose;
   }
 
-  // Connection is currently being established
+  // Connection already in progress
   if (cache.promise) {
     cache.conn = await cache.promise;
     return cache.conn;
@@ -52,12 +65,17 @@ export async function connectDB() {
 
   const uri = getMongoUri();
 
+  console.log("Connecting to MongoDB...");
+  console.log("DNS servers:", dns.getServers());
+
   cache.promise = mongoose
     .connect(uri, {
       bufferCommands: false,
-      serverSelectionTimeoutMS: 10000,
+      serverSelectionTimeoutMS: 15000,
     })
     .then(async () => {
+      console.log("MongoDB connection successful");
+
       cache.conn = mongoose;
 
       // Seed only after MongoDB connection is confirmed.
@@ -68,6 +86,8 @@ export async function connectDB() {
     .catch((error: unknown) => {
       cache.promise = null;
       cache.conn = null;
+
+      console.error("MongoDB connection failed:", error);
 
       throw new Error(explainConnectionFailure(uri, error));
     });

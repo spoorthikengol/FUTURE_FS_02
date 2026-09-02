@@ -18,9 +18,10 @@ export async function proxy(request: NextRequest) {
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );
   const isAuthApi =
-    pathname.startsWith("/api/") &&
-    !pathname.startsWith("/api/auth/login") &&
-    !pathname.startsWith("/api/contact");
+  pathname.startsWith("/api/") &&
+  !pathname.startsWith("/api/auth/login") &&
+  !pathname.startsWith("/api/auth/signup") &&
+  !pathname.startsWith("/api/contact");
 
   if (!isProtected && !isAuthApi) {
     return NextResponse.next();
