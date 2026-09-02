@@ -124,7 +124,7 @@ veloracrm/
 └── proxy.ts
 
 
-## 🤖 AI Layer
+## **🤖 AI Layer**
 
 VeloraCRM includes an AI assistant designed to help users understand and manage leads more efficiently.
 
@@ -138,7 +138,7 @@ VeloraCRM includes an AI assistant designed to help users understand and manage 
 - Natural-language questions about CRM data
 - Deterministic fallback responses when the AI provider is unavailable
 
-### AI Reliability
+###**AI Reliability**
 
 The AI service includes:
 
@@ -150,7 +150,7 @@ The AI service includes:
 
 ---
 
-## 📊 Analytics & Forecasting
+## **📊 Analytics & Forecasting**
 
 The analytics dashboard provides an overview of CRM performance and sales activity.
 
@@ -169,7 +169,7 @@ It includes:
 
 ---
 
-## 🗄️ MongoDB Setup
+## **🗄️ MongoDB Setup**
 
 VeloraCRM uses MongoDB Atlas for persistent data storage.
 
@@ -183,7 +183,7 @@ Make sure your MongoDB Atlas network access settings allow connections from your
 
 ---
 
-## 🔐 Environment Variables
+## **🔐 Environment Variables**
 
 Create a `.env.local` file in the project root:
 
@@ -197,7 +197,7 @@ Never commit `.env.local` or any file containing production secrets to GitHub.
 
 ---
 
-## 🚀 Installation
+## **🚀 Installation**
 
 Clone the repository:
 
@@ -215,7 +215,7 @@ Create your `.env.local` file and configure the required environment variables.
 
 ---
 
-## 💻 Local Development
+## **💻 Local Development**
 
 Start the development server:
 
@@ -235,7 +235,7 @@ Run TypeScript validation:
 
 ---
 
-## 👤 Demo Login
+## **👤 Demo Login**
 
 For demonstration purposes, the application includes a demo login account.
 
@@ -249,7 +249,7 @@ For demonstration purposes, the application includes a demo login account.
 
 ---
 
-## 🔌 API Documentation
+## **🔌 API Documentation**
 
 The application provides API routes for:
 
@@ -267,7 +267,7 @@ All protected API routes require an authenticated session.
 
 ---
 
-## 🔄 Lead Management Workflow
+## **🔄 Lead Management Workflow**
 
 The CRM supports the complete lead management workflow:
 
@@ -291,7 +291,7 @@ Users can:
 
 ---
 
-## 🌐 Deployment
+## **🌐 Deployment**
 
 The application is deployed using Vercel.
 
@@ -305,7 +305,7 @@ Environment variables must be configured separately in the Vercel project settin
 
 ---
 
-## 🔮 Future Improvements
+## 🔮 **Future Improvements**
 
 Potential future enhancements include:
 
@@ -322,7 +322,7 @@ Potential future enhancements include:
 
 ---
 
-## 🎓 Internship Context
+## **🎓 Internship Context**
 
 This project was developed as part of the **Future Interns Full Stack Web Development Internship — Task 2**.
 
@@ -330,13 +330,13 @@ The objective was to build a practical client lead management system capable of 
 
 ---
 
-## 📄 License
+## **📄 License**
 
 This project is created for educational and internship purposes.
 
 ---
 
-## 👩‍💻 Author
+## **👩‍💻 Author**
 
 **Spoorthi K P**
 
