@@ -1,9 +1,17 @@
+<<<<<<< HEAD
 ### Turn leads into relationships.
+=======
+# VeloraCRM
 
-VeloraCRM is an AI-powered client lead management system built as **Task 2 of the Future Interns Full Stack Web Development Internship**.
+**Client Lead Management System**
+>>>>>>> ce22463 (Update README)
 
-It is designed for modern revenue teams to manage website-generated leads through a premium dark SaaS workspace combining pipeline management, activity tracking, analytics, follow-ups and a recommendation-only AI copilot.
+A modern full-stack CRM designed to help businesses manage client leads,
+track sales pipelines and stay organized with follow-ups.
 
+## 🎓 Internship Project
+
+<<<<<<< HEAD
 ---
 
 ## 🎯 Internship Project
@@ -15,35 +23,26 @@ It is designed for modern revenue teams to manage website-generated leads throug
 VeloraCRM was developed to manage client leads generated through website contact forms and provide a complete workflow from lead capture to conversion.
 
 ---
+=======
+Developed as part of the **Future Interns Full Stack Web Development
+Internship --- Task 2**.
+>>>>>>> ce22463 (Update README)
 
 ## ✨ Features
 
-- Admin authentication with hashed passwords and HTTP-only JWT cookies
-- Lead CRUD operations
-- Lead search, filtering, sorting and pagination
-- Kanban pipeline with drag-and-drop status changes
-- Lead profiles with notes and follow-ups
-- AI-powered lead insights
-- Dashboard KPIs and analytics
-- Conversion funnel visualization
-- Recent activity tracking
-- Follow-up management
-- Overdue follow-up tracking
-- Analytics and revenue forecasting
-- ROI analysis by source, campaign and month
-- Velora AI assistant
-- AI-generated email drafts
-- Email drafts never auto-send
-- Public `/contact` form for lead capture
-- Persistent activity timeline
-- Demo seed data with realistic leads
-- CSV lead export
-- Recommendation-only AI with deterministic fallback
-
----
+-   Lead creation, search and filtering
+-   Sales pipeline and lead status management
+-   Follow-ups, reminders and overdue tracking
+-   Analytics dashboard and sales insights
+-   Deal risk indicators
+-   AI-powered lead assistance
+-   CSV export for filtered leads
+-   Secure authentication and protected APIs
+-   Responsive modern dashboard
 
 ## 🛠️ Tech Stack
 
+<<<<<<< HEAD
 ### Frontend
 
 - Next.js 16
@@ -123,57 +122,69 @@ veloracrm/
 ```
 
 ---
+=======
+-   Next.js
+-   TypeScript
+-   MongoDB
+-   Tailwind CSS
+-   AI Integration
+-   Vercel
+>>>>>>> ce22463 (Update README)
 
 ## 🤖 AI Layer
 
-VeloraCRM includes an AI assistant designed to help users understand and manage leads more efficiently.
+VeloraCRM includes an AI assistant designed to help users understand and
+manage leads more efficiently.
 
 ### AI Capabilities
 
-- Lead analysis and summaries
-- Lead prioritization assistance
-- Follow-up recommendations
-- Sales insights
-- Related lead suggestions
-- Natural-language questions about CRM data
-- Deterministic fallback responses when the AI provider is unavailable
+-   Lead analysis and summaries
+-   Lead prioritization assistance
+-   Follow-up recommendations
+-   Sales insights
+-   Related lead suggestions
+-   Natural-language questions about CRM data
+-   Deterministic fallback responses when the AI provider is unavailable
 
 ### AI Reliability
 
 The AI service includes:
 
-- Request timeout protection
-- Automatic retry for temporary provider errors
-- Handling for rate-limit responses
-- Handling for server-side provider failures
-- Deterministic fallback responses to keep the assistant usable even when the external AI service is unavailable
+-   Request timeout protection
+-   Automatic retry for temporary provider errors
+-   Handling for rate-limit responses
+-   Handling for server-side provider failures
+-   Deterministic fallback responses to keep the assistant usable even
+    when the external AI service is unavailable
 
----
+------------------------------------------------------------------------
 
 ## 📊 Analytics & Forecasting
 
-The analytics dashboard provides an overview of CRM performance and sales activity.
+The analytics dashboard provides an overview of CRM performance and
+sales activity.
 
 It includes:
 
-- Total leads
-- Conversion rate
-- Revenue metrics
-- Lead sources
-- Sales funnel
-- Pipeline performance
-- Follow-up activity
-- Deal risk indicators
-- Speed-to-lead metrics
-- Performance trends
+-   Total leads
+-   Conversion rate
+-   Revenue metrics
+-   Lead sources
+-   Sales funnel
+-   Pipeline performance
+-   Follow-up activity
+-   Deal risk indicators
+-   Speed-to-lead metrics
+-   Performance trends
 
----
+------------------------------------------------------------------------
 
 ## 🗄️ MongoDB Setup
 
 VeloraCRM uses MongoDB Atlas for persistent data storage.
 
-Create a MongoDB Atlas cluster and configure the connection string in your environment variables.
+Create a MongoDB Atlas cluster and configure the connection string in
+your environment variables.
 
 Example:
 
@@ -181,9 +192,7 @@ Example:
 MONGODB_URI=mongodb://username:password@host1:27017,host2:27017,host3:27017/?ssl=true&replicaSet=replicaSetName&authSource=admin&appName=VeloraCRM
 ```
 
-Make sure your MongoDB Atlas network access settings allow connections from your development or deployment environment.
-
----
+------------------------------------------------------------------------
 
 ## 🔐 Environment Variables
 
@@ -197,9 +206,10 @@ AI_BASE_URL=your_ai_provider_base_url
 AI_MODEL=your_ai_model
 ```
 
-Never commit `.env.local` or any file containing production secrets to GitHub.
+Never commit `.env.local` or any file containing production secrets to
+GitHub.
 
----
+------------------------------------------------------------------------
 
 ## 🚀 Installation
 
@@ -221,9 +231,7 @@ Install dependencies:
 npm install
 ```
 
-Create your `.env.local` file and configure the required environment variables.
-
----
+------------------------------------------------------------------------
 
 ## 💻 Local Development
 
@@ -251,11 +259,9 @@ Run TypeScript validation:
 npx tsc --noEmit
 ```
 
----
+------------------------------------------------------------------------
 
 ## 👤 Demo Login
-
-For demonstration purposes, the application includes a demo login account.
 
 **Email:**
 ```text
@@ -267,49 +273,48 @@ ivan.p@example.net
 VeloraAdmin123!
 ```
 
----
+------------------------------------------------------------------------
 
 ## 🔌 API Documentation
 
 The application provides API routes for:
 
-- Authentication
-- Lead management
-- Lead search and filtering
-- Lead export
-- Follow-ups
-- Analytics
-- AI assistant
-- Activity tracking
-- Contact forms
+-   Authentication
+-   Lead management
+-   Lead search and filtering
+-   Lead export
+-   Follow-ups
+-   Analytics
+-   AI assistant
+-   Activity tracking
+-   Contact forms
 
 All protected API routes require an authenticated session.
 
----
+------------------------------------------------------------------------
 
 ## 🔄 Lead Management Workflow
 
-The CRM supports the complete lead management workflow:
-
-**Website Contact → Lead Creation → Qualification → Pipeline Management → Follow-up → Conversion**
+**Website Contact → Lead Creation → Qualification → Pipeline Management
+→ Follow-up → Conversion**
 
 Users can:
 
-- Create new leads
-- Search leads globally
-- Filter leads by status, source and priority
-- Update lead information
-- Move leads through the sales pipeline
-- Add notes
-- Schedule follow-ups
-- Track overdue follow-ups
-- Mark follow-ups as completed
-- Reschedule follow-ups
-- Delete leads
-- Export filtered leads as CSV
-- Analyze lead performance
+-   Create new leads
+-   Search leads globally
+-   Filter leads by status, source and priority
+-   Update lead information
+-   Move leads through the sales pipeline
+-   Add notes
+-   Schedule follow-ups
+-   Track overdue follow-ups
+-   Mark follow-ups as completed
+-   Reschedule follow-ups
+-   Delete leads
+-   Export filtered leads as CSV
+-   Analyze lead performance
 
----
+------------------------------------------------------------------------
 
 ## 🌐 Deployment
 
@@ -320,44 +325,54 @@ The application is deployed using Vercel.
 
 The project uses MongoDB Atlas for production database storage.
 
-Environment variables must be configured separately in the Vercel project settings.
+Environment variables must be configured separately in the Vercel
+project settings.
 
----
+------------------------------------------------------------------------
 
 ## 🔮 Future Improvements
 
 Potential future enhancements include:
 
-- Advanced AI-powered lead scoring
-- Automated email follow-ups
-- WhatsApp integration
-- CRM email synchronization
-- Advanced sales forecasting
-- Role-based permissions
-- Team collaboration
-- Custom analytics reports
-- Notification integrations
-- Enhanced AI sales recommendations
+-   Advanced AI-powered lead scoring
+-   Automated email follow-ups
+-   WhatsApp integration
+-   CRM email synchronization
+-   Advanced sales forecasting
+-   Role-based permissions
+-   Team collaboration
+-   Custom analytics reports
+-   Notification integrations
+-   Enhanced AI sales recommendations
 
----
+------------------------------------------------------------------------
 
 ## 🎓 Internship Context
 
-This project was developed as part of the **Future Interns Full Stack Web Development Internship — Task 2**.
+This project was developed as part of the **Future Interns Full Stack
+Web Development Internship --- Task 2**.
 
-The objective was to build a practical client lead management system capable of handling lead generation, lead tracking, follow-ups, analytics and AI-assisted CRM operations.
+The objective was to build a practical client lead management system
+capable of handling lead generation, lead tracking, follow-ups,
+analytics and AI-assisted CRM operations.
 
----
+------------------------------------------------------------------------
 
 ## 📄 License
 
 This project is created for educational and internship purposes.
 
----
+------------------------------------------------------------------------
 
 ## 👩‍💻 Author
 
 **Spoorthi K P**
 
+<<<<<<< HEAD
 - **GitHub:** [spoorthikengol](https://github.com/spoorthikengol/FUTURE_FS_02)
 - **Project:** VeloraCRM — Future Interns Task 2
+=======
+GitHub: `https://github.com/spoorthikengol/FUTURE_FS_02`
+
+Project: **VeloraCRM --- Future Interns Task 2**
+>>>>>>> ce22463 (Update README)
