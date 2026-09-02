@@ -1,17 +1,12 @@
-<<<<<<< HEAD
+
 ### Turn leads into relationships.
 =======
 # VeloraCRM
 
 **Client Lead Management System**
->>>>>>> ce22463 (Update README)
-
 A modern full-stack CRM designed to help businesses manage client leads,
 track sales pipelines and stay organized with follow-ups.
 
-## 🎓 Internship Project
-
-<<<<<<< HEAD
 ---
 
 ## 🎯 Internship Project
@@ -375,4 +370,4 @@ This project is created for educational and internship purposes.
 GitHub: `https://github.com/spoorthikengol/FUTURE_FS_02`
 
 Project: **VeloraCRM --- Future Interns Task 2**
->>>>>>> ce22463 (Update README)
+
