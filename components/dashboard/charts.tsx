@@ -233,7 +233,9 @@ export function FunnelViz({
                     </span>
                     <div className="min-w-0">
                       <p className="text-sm font-medium tracking-wide text-foreground">{item.status}</p>
-                      <p className="text-xs text-muted">{meta.description}</p>
+                      <p className="whitespace-nowrap text-xs text-muted">
+  {meta.description}
+</p>
                     </div>
                   </div>
 
@@ -246,9 +248,9 @@ export function FunnelViz({
                     </div>
                     <div className="w-16 text-right">
                       <p className="text-sm font-semibold text-foreground">{item.count.toLocaleString()}</p>
-                      <p className={`text-xs ${isConverted ? "text-rose-300" : "text-muted"}`}>
-                        {item.percentOfTotal.toFixed(0)}%
-                      </p>
+                      <p className="text-xs text-muted">
+  {item.percentOfTotal.toFixed(0)}%
+</p>
                     </div>
                   </div>
                 </div>
