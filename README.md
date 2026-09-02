@@ -359,7 +359,6 @@ This project is created for educational and internship purposes.
 
 **Spoorthi K P**
 
-<<<<<<< HEAD
 - **GitHub:** [spoorthikengol](https://github.com/spoorthikengol/FUTURE_FS_02)
 - **Project:** VeloraCRM — Future Interns Task 2
 =======
